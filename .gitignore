@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+.xml
+/stringSoundsTrainer.debug
+/stringSoundsTrainer
+/.settings/language.settings.xml
+/.cproject
+/.project
