@@ -36,3 +36,7 @@
 /.settings/language.settings.xml
 /.cproject
 /.project
+/trainer/stringSoundsTrainer.debug
+/player/stringSoundsPlayer.debug
+/trainer/stringSoundsTrainer
+/player/stringSoundsPlayer

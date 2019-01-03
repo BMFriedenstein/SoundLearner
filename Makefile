@@ -1,19 +1,7 @@
-CXX=g++
-CFLAGS = -Wall -O3 -g -std=c++11
-OBJ = main.o
-Target = stringSoundsTrainer
-DEPS=
-.PHONY: clean
+SUBDIRS := $(wildcard */.)
 
-$(Target): $(OBJ)
-	echo linking...
-	$(CXX) -o $@ $^ $(CFLAGS)
-	cp $@ $@.debug
-	strip $@
+all: $(SUBDIRS)
+$(SUBDIRS):
+	$(MAKE) -C $@
 
-%.o: %.cpp $(DEPS)
-	echo building $@...
-	$(CXX) -c -o $@ $< $(CFLAGS)
-
-clean:
-	rm -rf *.o *.d $(Target)
+.PHONY: all $(SUBDIRS)
