@@ -1,6 +1,6 @@
 CXX=g++
 CFLAGS = -Wall -O3 -std=c++11 -I../ -I./
-SOURCES = sound_string.cpp model.cpp
+SOURCES = sound_string.cpp instrument_model.cpp
 OBJ = $(SOURCES:.cpp=.o)
 DEPS=
 .PHONY: clean
