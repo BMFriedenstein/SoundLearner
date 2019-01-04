@@ -1,0 +1,19 @@
+CXX=g++
+CFLAGS = -Wall -O3 -std=c++11 -I../ -I./
+SOURCES = sound_string.cpp model.cpp
+OBJ = $(SOURCES:.cpp=.o)
+DEPS=
+.PHONY: clean
+Target=libcommon.a
+
+all: $(Target)
+
+$(Target): $(OBJ)
+	ar crf $@ $(OBJ)
+
+%.o: %.cpp
+	@echo "COMPILING SOURCE $< INTO OBJECT $@"
+	$(CXX) -c $< -o $@  $(CFLAGS)
+
+clean:
+	rm -rf *.o *.d $(Target)
