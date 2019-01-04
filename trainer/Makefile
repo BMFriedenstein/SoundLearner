@@ -1,19 +1,24 @@
 CXX=g++
-CFLAGS = -Wall -O3 -g -std=c++11
-OBJ = main.o
-Target = stringSoundsTrainer
+CFLAGS = -Wall -O3 -g -std=c++11 -I../ -I./ -I../libs
+SOURCES = main.cpp trainer.cpp
+OBJ = $(SOURCES:.cpp=.o)
+Target = StringSoundsTrainer
+LIBS=common
+LDLIBS=$(addprefix -L../libs/, $(LIBS)) $(addprefix -l, $(LIBS))
 DEPS=
-.PHONY: clean
+.PHONY: clean libs
 
-$(Target): $(OBJ)
-	echo linking...
-	$(CXX) -o $@ $^ $(CFLAGS)
+$(Target): | libs $(OBJ)
+	$(CXX) -o $@ $(OBJ) $(CFLAGS) $(LDLIBS)
 	cp $@ $@.debug
 	strip $@
 
-%.o: %.cpp $(DEPS)
-	echo building $@...
-	$(CXX) -c -o $@ $< $(CFLAGS)
+libs:
+	$(MAKE) -C ../libs $(MAKECMDGOALS)
 
-clean:
-	rm -rf *.o *.d $(Target)
+%.o: %.cpp
+	@echo "COMPILING SOURCE $< INTO OBJECT $@"
+	$(CXX) -c $< -o $@  $(CFLAGS)
+
+clean: libs
+	rm -rf *.o *.d $(Target) *.debug
