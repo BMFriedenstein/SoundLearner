@@ -10,18 +10,19 @@
 
 #include <memory>
 #include <vector>
-#include "sound_string.h"
+
+#include "string_oscillator.h"
 
 class InstrumentModelC {
 private:
     const uint16_t max_strings = 1000;
-	std::vector<std::unique_ptr<SoundStringC>> sound_strings;
+	std::vector<std::unique_ptr<StringOscillatorC>> sound_strings;
 	std::string name;
 public:
 	InstrumentModelC( uint16_t a_num_strings, std::string a_instrument_name );
 	std::string GetName(){ return name; };
 
-	void AddTunedString(SoundStringC& a_tuned_string);
+	void AddTunedString(StringOscillatorC& a_tuned_string);
 	void AddUntunedString();
 
 	std::string ToJson();

@@ -3,8 +3,8 @@ CFLAGS = -Wall -O3 -g -std=c++11 -I../ -I./ -I../libs
 SOURCES = main.cpp trainer.cpp
 OBJ = $(SOURCES:.cpp=.o)
 Target = StringSoundsTrainer
-LIBS=common
-LDLIBS=$(addprefix -L../libs/, $(LIBS)) $(addprefix -l, $(LIBS))
+LIBS=midi wave instrument
+LDLIBS= -L../libs/include $(addprefix -l, $(LIBS))
 DEPS=
 .PHONY: clean libs
 

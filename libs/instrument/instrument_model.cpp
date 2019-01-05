@@ -19,11 +19,11 @@ InstrumentModelC::InstrumentModelC( uint16_t a_num_strings, string a_instrument_
 
 /*
  * Add a pre tuned string to the instrument
- * @parameters: reference to a a_tuned_string (SoundStringC),
+ * @parameters: reference to a a_tuned_string (StringOscillatorC),
  * @returns none
  */
-void InstrumentModelC::AddTunedString(SoundStringC& a_tuned_string){
-    unique_ptr<SoundStringC> tuned_string( new SoundStringC( move(a_tuned_string) ) );
+void InstrumentModelC::AddTunedString(StringOscillatorC& a_tuned_string){
+    unique_ptr<StringOscillatorC> tuned_string( new StringOscillatorC( move(a_tuned_string) ) );
     sound_strings.push_back(std::move(tuned_string));
 }
 
@@ -33,7 +33,7 @@ void InstrumentModelC::AddTunedString(SoundStringC& a_tuned_string){
  * @returns none
  */
 void InstrumentModelC::AddUntunedString(){
-    sound_strings.push_back(std::move(SoundStringC::CreateUntunedString()));
+    sound_strings.push_back(std::move(StringOscillatorC::CreateUntunedString()));
 }
 
 /*

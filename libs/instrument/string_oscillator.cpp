@@ -5,11 +5,12 @@
  *      Author: brandon
  */
 
+#include "string_oscillator.h"
+
 #include <random>
-#include "sound_string.h"
 using namespace std;
 
-SoundStringC::SoundStringC( double a_phase,
+StringOscillatorC::StringOscillatorC( double a_phase,
                             double a_freq_factor,
                             double a_amp_factor,
                             double a_sus_factor,
@@ -46,7 +47,7 @@ SoundStringC::SoundStringC( double a_phase,
  * @parameters: frequency (The base note), velocity( how hard of note was pressed )
  * @returns: void
  */
-void SoundStringC::PrimeString( double freq, double velocity ) {
+void StringOscillatorC::PrimeString( double freq, double velocity ) {
     max_amp = velocity*start_amplitude_factor;
     max_freq = freq + velocity*start_frequency_factor;
     amp_state = 0;
@@ -61,7 +62,7 @@ void SoundStringC::PrimeString( double freq, double velocity ) {
  * @parameters: sustain (Is the note still being pressed)
  * @returns: next value of the signal float
  */
-double SoundStringC::NextSample( bool sustain ) {
+double StringOscillatorC::NextSample( bool sustain ) {
     // Calculate amplitude state
     if( amp_state < max_amp ){
         amp_state =  amp_state + amp_attack_delta;
@@ -94,7 +95,7 @@ double SoundStringC::NextSample( bool sustain ) {
  * @parameters: none
  * @returns: json string
  */
-string SoundStringC::ToJson() {
+string StringOscillatorC::ToJson() {
     string json_str = "{\n";
     json_str += "\"start_phase\":" +  to_string(start_phase) + ",\n";
     json_str += "\"start_frequency_factor\":" +  to_string(start_frequency_factor) + ",\n";
@@ -113,7 +114,7 @@ string SoundStringC::ToJson() {
  * @parameters: severity(determines the severity of the mutation)
  * @returns: Sound string pointer
  */
-unique_ptr<SoundStringC> SoundStringC::TuneString(uint8_t severity) {
+unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(uint8_t severity) {
     float sev_factor = severity/255L;
 
     std::random_device random_device; // obtain a random number from hardware
@@ -128,7 +129,7 @@ unique_ptr<SoundStringC> SoundStringC::TuneString(uint8_t severity) {
     double a_freq_decay = freq_decay_rate + (real_distr(eng) > 0) ? real_distr(eng) : 0;
     double a_freq_attack = freq_attack_delta + (real_distr(eng) > 0) ? real_distr(eng) : 0;
 
-    auto mutant_string = unique_ptr<SoundStringC> { new SoundStringC(a_phase,
+    auto mutant_string = unique_ptr<StringOscillatorC> { new StringOscillatorC(a_phase,
             a_freq_factor, a_amp_factor, a_sus_factor, a_amp_decay,
             a_amp_attack, a_freq_decay, a_freq_attack) };
 
@@ -140,7 +141,7 @@ unique_ptr<SoundStringC> SoundStringC::TuneString(uint8_t severity) {
  * @parameters: none
  * @returns: Sound string pointer
  */
-unique_ptr<SoundStringC> SoundStringC::CreateUntunedString() {
+unique_ptr<StringOscillatorC> StringOscillatorC::CreateUntunedString() {
     std::random_device random_device; // obtain a random number from hardware
     std::mt19937 eng(random_device()); // seed the generator
     std::uniform_real_distribution<> real_distr(0, 1); // define the range
@@ -153,7 +154,7 @@ unique_ptr<SoundStringC> SoundStringC::CreateUntunedString() {
     double a_freq_decay = real_distr(eng);
     double a_freq_attack = real_distr(eng);
 
-    auto mutant_string = unique_ptr<SoundStringC> { new SoundStringC(a_phase,
+    auto mutant_string = unique_ptr<StringOscillatorC> { new StringOscillatorC(a_phase,
             a_freq_factor, a_amp_factor, a_sus_factor, a_amp_decay,
             a_amp_attack, a_freq_decay, a_freq_attack) };
 

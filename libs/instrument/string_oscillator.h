@@ -5,15 +5,16 @@
  *      Author: brandon
  */
 
-#ifndef COMMON_SOUND_STRING_H_
-#define COMMON_SOUND_STRING_H_
+#ifndef STRING_OSCILLATOR_H_
+#define STRING_OSCILLATOR_H_
 
 #include <memory>
 #include <string>
 #include <math.h>
-#include "common.h"
 
-class SoundStringC {
+#include "../include/common.h"
+
+class StringOscillatorC {
 private:
     /* Sinusoid's start definition */
     double start_phase;
@@ -40,7 +41,7 @@ private:
         return amp_state * sin ( (2*(sample_no/SAMPLE_RATE)*PI*freq_state) - start_phase );
     }
 public:
-    SoundStringC(   double a_phase,
+    StringOscillatorC(   double a_phase,
                     double a_freq_factor,
                     double a_amp_factor,
                     double a_sus_factor,
@@ -53,8 +54,8 @@ public:
     double NextSample( bool sustain );
     uint32_t GetSampleNumber() { return sample_no; }
     std::string ToJson();
-    std::unique_ptr<SoundStringC> TuneString( uint8_t amount );
-    static std::unique_ptr<SoundStringC> CreateUntunedString();
+    std::unique_ptr<StringOscillatorC> TuneString( uint8_t amount );
+    static std::unique_ptr<StringOscillatorC> CreateUntunedString();
 };
 
-#endif /* COMMON_SOUND_STRING_H_ */
+#endif /* STRING_OSCILLATOR_H_ */

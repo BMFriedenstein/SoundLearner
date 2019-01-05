@@ -1,10 +1,10 @@
-SUBDIRS := $(wildcard */.)
-SUBDIRS := $(filter-out include/., $(SUBDIRS))
+SUBDIRS :=libs trainer player 
 
 all: $(SUBDIRS)
 clean: $(SUBDIRS)
-
-include/.:
+make_trainer: trainer
+make_player: player
+make_libs: libs
 
 $(SUBDIRS):
 	$(MAKE) -C $@ $(MAKECMDGOALS)
