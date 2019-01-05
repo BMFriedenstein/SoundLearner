@@ -77,3 +77,28 @@ vector<int16_t> WaveReaderC::ToMono16BitWave(){
     // TODO: Handle other formats
     return vector<int16_t>(wav_data.size());
 }
+
+
+
+MonoWaveWriterC::MonoWaveWriterC( vector<int16_t>& a_data ){
+    wav_data.resize(a_data.size()*2);
+    memcpy((char*)wav_data.data(),(char*)a_data.data(),wav_data.size());
+    header.chunk_size=wav_data.size()+36;
+    header.sub_chunk_1_size=16;
+    header.audio_format=1;
+    header.num_of_channels=1;
+    header.sample_rate=44100;
+    header.bytes_per_second=88200;
+    header.block_allign=2;
+    header.bit_depth=16;
+    header.sub_chunk_2_size=wav_data.size();
+}
+
+void MonoWaveWriterC::Write(std::string& a_file_name){
+    vector<char> data(wav_data.size() + sizeof(wav_header));
+    memcpy(data.data(), &header, sizeof(wav_header));
+    memcpy(data.data()+sizeof(wav_header), wav_data.data(),wav_data.size());
+    ofstream fout(a_file_name, ios::out | ios::binary);
+    fout.write(data.data(), data.size());
+    fout.close();
+}

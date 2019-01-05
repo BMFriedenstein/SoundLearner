@@ -41,10 +41,10 @@
  *
  */
 typedef struct  WAV_HEADER{
-    char            riff[4];            // RIFF Header      Magic header
+    char            riff[4] = {'R','I','F','F'};            // RIFF Header      Magic header
     uint32_t        chunk_size;         // RIFF Chunk Size
-    char            wave[4];            // WAVE Header
-    char            format[4];          // FMT header
+    char            wave[4] = {'W','A','V','E'};            // WAVE Header
+    char            format[4] = {'f','m','t',' '};;          // FMT header
     uint32_t        sub_chunk_1_size;   // Size of the fmt chunk
     uint16_t        audio_format;       // Audio format 1=PCM,6=mulaw,7=alaw, 257=IBM Mu-Law, 258=IBM A-Law, 259=ADPCM
     uint16_t        num_of_channels;    // Number of channels 1=Mono 2=Sterio
@@ -52,7 +52,7 @@ typedef struct  WAV_HEADER{
     uint32_t        bytes_per_second;   // bytes per second
     uint16_t        block_allign;       // 2=16-bit mono, 4=16-bit stereo
     uint16_t        bit_depth;          // Number of bits per sample
-    char            sub_chunk_2_id[4];  // "data"  string
+    char            sub_chunk_2_id[4]={'d','a','t','a'};  // "data"  string
     uint32_t        sub_chunk_2_size;   // Sampled data length
 
 }wav_header;

@@ -30,6 +30,16 @@ public:
     std::vector<float> ToMonoFloatWave();
 };
 
+class MonoWaveWriterC {
+private:
+    wav_header header;
+    std::vector<char> wav_data;
+public:
+
+    MonoWaveWriterC(std::vector<int16_t>& a_data);
+    void Write(std::string& a_file_name);
+};
+
 
 
 #endif /* LIBS_WAVE_WAVE_H_ */
