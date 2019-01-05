@@ -67,7 +67,9 @@ vector<int16_t> WaveReaderC::ToMono16BitWave(){
     if( header.num_of_channels == 1 ){
         // 16 bit
         if( header.bit_depth == 16 ){
-            return vector<int16_t>((int16_t*)wav_data.begin(), (int16_t*)wav_data.end());
+            vector<int16_t> out_vector((int)wav_data.size()/2);
+            memcpy((char*)out_vector.data(),wav_data.data(),(int)wav_data.size());
+            return out_vector;
         }
         // TODO: Handle other Bit depth
     }
