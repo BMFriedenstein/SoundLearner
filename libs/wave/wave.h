@@ -8,7 +8,27 @@
 #ifndef LIBS_WAVE_WAVE_H_
 #define LIBS_WAVE_WAVE_H_
 
+#include <vector>
+#include <memory>
+#include <string>
+#include "include/common.h"
 
+class WaveReaderC {
+private:
+    std::string filename;
+    wav_header header;
+    std::vector<char> wav_data;
+public:
+
+    WaveReaderC(std::string & a_filename);
+    std::string HeaderToString();
+    std::vector<int16_t> ToMono16BitWave();
+
+
+    // Todo for future
+    std::vector<int32_t> ToMono32BitWave();
+    std::vector<float> ToMonoFloatWave();
+};
 
 
 
