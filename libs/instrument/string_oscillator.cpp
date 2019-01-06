@@ -29,7 +29,9 @@ StringOscillatorC::StringOscillatorC( double a_phase,
     if( a_freq_attack > a_freq_factor ) { a_freq_attack = a_freq_factor; }
     if( a_freq_attack < 0 ) { a_freq_attack = 0; }
     if( a_freq_factor < 0 ) { a_freq_factor = 0; }
+    if( a_freq_factor > 400 ) { a_freq_factor = 400; }
     if( a_amp_factor < 0 ) { a_amp_factor = 0; }
+    if( sustain_factor < 0 ) { sustain_factor = 0; }
 
     start_phase = a_phase;
     start_frequency_factor = a_freq_factor;
@@ -44,15 +46,16 @@ StringOscillatorC::StringOscillatorC( double a_phase,
 /*
  * Parse information required to generate a signal
  *
- * @parameters: frequency (The base note), velocity( how hard of note was pressed )
+ * @parameters: frequency (The base note), velocity( how hard of note was pressed  form 0-1)
  * @returns: void
  */
 void StringOscillatorC::PrimeString( double freq, double velocity ) {
     max_amp = velocity*start_amplitude_factor;
-    max_freq = freq + velocity*start_frequency_factor;
+    max_freq = freq*start_frequency_factor;
+    if( max_freq >SAMPLE_RATE/2 ) max_freq = SAMPLE_RATE/2;
     amp_state = 0;
-    freq_state = base_freq;
     base_freq = freq;
+    freq_state = base_freq;
     sample_no = 0;
 }
 
@@ -63,29 +66,41 @@ void StringOscillatorC::PrimeString( double freq, double velocity ) {
  * @returns: next value of the signal float
  */
 double StringOscillatorC::NextSample( bool sustain ) {
+
     // Calculate amplitude state
-    if( amp_state < max_amp ){
+    if( !in_amp_decay ){
         amp_state =  amp_state + amp_attack_delta;
     }
     else{
-        amp_state = amp_state* (sustain ? sustain_factor : 1) * amp_decay_rate;
+        double decay = (sustain ? sustain_factor : 1) * amp_decay_rate;
+        amp_state = amp_state*(decay>1 ? 1 : decay) ;
     }
-    if( amp_state <0 ) amp_state =0;
+    if( amp_state <0 ){ amp_state = 0; }
+    if( amp_state > max_amp ){
+        in_amp_decay = true;
+        amp_state = max_amp;
+    }
 
     // Calculate frequency state
-    if( freq_state < max_freq ){
+    if( !in_freq_decay ){
         freq_state = freq_state + freq_attack_delta;
     }
     else{
-        freq_state = freq_state - (sustain ? sustain_factor : 1) * freq_decay_rate;
+        double decay = (sustain ? sustain_factor : 1) * freq_decay_rate;
+        freq_state = freq_state*(decay>1 ? 1 : decay) ;
     }
-    if( freq_state <0 ) freq_state =0;
+    if( freq_state <0 ){ freq_state =0; }
+    if( freq_state > max_freq){
+        in_freq_decay=true;
+        freq_state = max_freq;
+    }
 
     // generate sample;
-    float sample_val = wave();
+    double sample_val = SineWave();
 
-    // increment sample numerber
+    // increment sample number
     sample_no++;
+
     return sample_val;
 }
 
@@ -119,14 +134,14 @@ unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(uint8_t severity) {
 
     std::random_device random_device; // obtain a random number from hardware
     std::mt19937 eng(random_device()); // seed the generator
-    std::uniform_real_distribution<> real_distr(-severity, severity); // define the range
-    double a_phase =  start_phase + (real_distr(eng) > 0) ? sev_factor*2*PI*real_distr(eng) : 0;
-    double a_freq_factor = start_frequency_factor + (real_distr(eng) > 0) ? sev_factor*40000*real_distr(eng) : 0;
-    double a_amp_factor = start_amplitude_factor + (real_distr(eng) > 0) ? sev_factor*65536*real_distr(eng) : 0;
-    double a_sus_factor = sustain_factor + (real_distr(eng) > 0) ? sev_factor*100*real_distr(eng) : 0;
-    double a_amp_decay = amp_decay_rate + (real_distr(eng) > 0) ? real_distr(eng) : 0;
-    double a_amp_attack = amp_attack_delta + (real_distr(eng) > 0) ? real_distr(eng) : 0;
-    double a_freq_decay = freq_decay_rate + (real_distr(eng) > 0) ? real_distr(eng) : 0;
+    std::uniform_real_distribution<> real_distr(-sev_factor, sev_factor); // define the range
+    double a_phase =  start_phase + (real_distr(eng) > 0) ? 2*PI*real_distr(eng) : 0;
+    double a_freq_factor = start_frequency_factor + (real_distr(eng) > 0) ? 10*real_distr(eng) : 0;
+    double a_amp_factor = start_amplitude_factor + (real_distr(eng) > 0) ? 30000*real_distr(eng) : 0;
+    double a_sus_factor = sustain_factor + (real_distr(eng) > 0) ? 0.2*real_distr(eng) : 0;
+    double a_amp_decay = amp_decay_rate + (real_distr(eng) > 0) ? 0.1*real_distr(eng) : 0;
+    double a_amp_attack = amp_attack_delta + (real_distr(eng) > 0) ? 500*real_distr(eng) : 0;
+    double a_freq_decay = freq_decay_rate + (real_distr(eng) > 0) ? 0.1*real_distr(eng) : 0;
     double a_freq_attack = freq_attack_delta + (real_distr(eng) > 0) ? real_distr(eng) : 0;
 
     auto mutant_string = unique_ptr<StringOscillatorC> { new StringOscillatorC(a_phase,
@@ -146,13 +161,13 @@ unique_ptr<StringOscillatorC> StringOscillatorC::CreateUntunedString() {
     std::mt19937 eng(random_device()); // seed the generator
     std::uniform_real_distribution<> real_distr(0, 1); // define the range
     double a_phase = 2*PI*real_distr(eng);
-    double a_freq_factor = 40000*real_distr(eng);
-    double a_amp_factor = 65536*real_distr(eng);
-    double a_sus_factor = 100*real_distr(eng);
-    double a_amp_decay = real_distr(eng);
-    double a_amp_attack = real_distr(eng);
-    double a_freq_decay = real_distr(eng);
-    double a_freq_attack = real_distr(eng);
+    double a_freq_factor = 10*real_distr(eng);
+    double a_amp_factor = 30000*real_distr(eng);
+    double a_sus_factor = 0.99+ 0.02*real_distr(eng);
+    double a_amp_decay = 0.965 + 0.035*real_distr(eng);
+    double a_amp_attack = 500*real_distr(eng);
+    double a_freq_decay =  0.999 + 0.001*real_distr(eng);
+    double a_freq_attack = 20*real_distr(eng);
 
     auto mutant_string = unique_ptr<StringOscillatorC> { new StringOscillatorC(a_phase,
             a_freq_factor, a_amp_factor, a_sus_factor, a_amp_decay,

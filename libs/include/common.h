@@ -19,7 +19,7 @@
 #define BITDEPTH 16
 #define MIN_AMP -32768
 #define MAX_AMP 32767
-#define PI 3.14159265
+#define PI 3.14159265F
 
 
 /* Wav format

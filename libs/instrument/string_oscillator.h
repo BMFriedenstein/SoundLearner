@@ -7,7 +7,6 @@
 
 #ifndef STRING_OSCILLATOR_H_
 #define STRING_OSCILLATOR_H_
-
 #include <memory>
 #include <string>
 #include <math.h>
@@ -36,9 +35,11 @@ private:
     double base_freq = 0;
     double velocity = 0;
     uint32_t sample_no = 0;
+    bool in_amp_decay=false;
+    bool in_freq_decay=false;
 
-    inline double wave(){
-        return amp_state * sin ( (2*(sample_no/SAMPLE_RATE)*PI*freq_state) - start_phase );
+    inline double SineWave(){
+        return amp_state * sin ( (((double)sample_no/(double)SAMPLE_RATE)*2.0*PI*freq_state) - start_phase );
     }
 public:
     StringOscillatorC(   double a_phase,

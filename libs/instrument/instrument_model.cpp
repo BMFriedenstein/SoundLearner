@@ -66,7 +66,7 @@ vector<double> InstrumentModelC::GenerateSignal( double velocity, double frequen
 
     // Check that we have a sustain value for each sample
     if( sustain.size() != num_of_samples ){
-        cout << "Warning!!! Sustain array not equal to smaple length" << endl;
+        cout << "Warning!!! Sustain array not equal to sample length" << endl;
         sustain.resize(num_of_samples);
     }
 
@@ -111,11 +111,18 @@ vector<int16_t> InstrumentModelC::GenerateIntSignal( double velocity, double fre
     for( uint32_t i =0; i < num_of_samples; i++ ){
         double sample_val = 0;
         for( auto string_iter = begin (sound_strings); string_iter != end (sound_strings); ++string_iter ){
-            sample_val += string_iter->get()->NextSample(sustain[i]);
+            sample_val += string_iter->get()->NextSample( sustain[i] );
         }
-        if(sample_val > MAX_AMP){ sample_val = MAX_AMP; }
-        if(sample_val > MIN_AMP){ sample_val = MAX_AMP; }
-        Signal[i] = (int16_t)int(sample_val + 0.5);
+
+        if( sample_val > MAX_AMP){ sample_val = MAX_AMP; }
+        if( sample_val < MIN_AMP){ sample_val = MIN_AMP; }
+
+        if(sample_val <0){
+            Signal[i] = (int16_t)int(sample_val - 0.5);
+        }
+        else{
+            Signal[i] = (int16_t)int(sample_val + 0.5);
+        }
     }
 
     return Signal;
