@@ -36,8 +36,8 @@ private:
     std::vector<char> wav_data;
 public:
 
-    MonoWaveWriterC(std::vector<int16_t>& a_data);
-    void Write(std::string& a_file_name);
+    MonoWaveWriterC( std::vector<int16_t>& a_data );
+    void Write( std::string a_file_name );
 };
 
 

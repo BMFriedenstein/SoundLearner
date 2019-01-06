@@ -94,7 +94,7 @@ MonoWaveWriterC::MonoWaveWriterC( vector<int16_t>& a_data ){
     header.sub_chunk_2_size=wav_data.size();
 }
 
-void MonoWaveWriterC::Write(std::string& a_file_name){
+void MonoWaveWriterC::Write(std::string a_file_name){
     vector<char> data(wav_data.size() + sizeof(wav_header));
     memcpy(data.data(), &header, sizeof(wav_header));
     memcpy(data.data()+sizeof(wav_header), wav_data.data(),wav_data.size());
