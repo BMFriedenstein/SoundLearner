@@ -44,3 +44,4 @@
 /trainer/StringSoundsTrainer.debug
 /player/StringSoundsPlayer.debug
 /player/StringSoundsPlayer
+/trainer/progression/*
