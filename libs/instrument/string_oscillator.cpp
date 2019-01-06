@@ -142,7 +142,7 @@ unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(uint8_t severity) {
     double a_amp_decay = amp_decay_rate + (real_distr(eng) > 0) ? 0.1*real_distr(eng) : 0;
     double a_amp_attack = amp_attack_delta + (real_distr(eng) > 0) ? 500*real_distr(eng) : 0;
     double a_freq_decay = freq_decay_rate + (real_distr(eng) > 0) ? 0.1*real_distr(eng) : 0;
-    double a_freq_attack = freq_attack_delta + (real_distr(eng) > 0) ? real_distr(eng) : 0;
+    double a_freq_attack = freq_attack_delta + (real_distr(eng) > 0) ? 1000*real_distr(eng) : 0;
 
     auto mutant_string = unique_ptr<StringOscillatorC> { new StringOscillatorC(a_phase,
             a_freq_factor, a_amp_factor, a_sus_factor, a_amp_decay,
@@ -167,7 +167,7 @@ unique_ptr<StringOscillatorC> StringOscillatorC::CreateUntunedString() {
     double a_amp_decay = 0.965 + 0.035*real_distr(eng);
     double a_amp_attack = 500*real_distr(eng);
     double a_freq_decay =  0.999 + 0.001*real_distr(eng);
-    double a_freq_attack = 20*real_distr(eng);
+    double a_freq_attack = 1000*real_distr(eng);
 
     auto mutant_string = unique_ptr<StringOscillatorC> { new StringOscillatorC(a_phase,
             a_freq_factor, a_amp_factor, a_sus_factor, a_amp_decay,

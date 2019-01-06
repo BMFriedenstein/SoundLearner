@@ -29,6 +29,9 @@ public:
 	std::vector<double> GenerateSignal( double velocity, double frequency, uint32_t num_of_samples , std::vector<bool>& sustain);
 	std::vector<int16_t> GenerateIntSignal( double velocity, double frequency, uint32_t num_of_samples, std::vector<bool>& sustain );
 
+
+	std::unique_ptr<InstrumentModelC> TuneInstrument( uint8_t amount );
+
 	// TODO for player
 	void PrimeNotePlayed( double frequency, double velocity);
 	double GenerateNextSample( bool sustain );

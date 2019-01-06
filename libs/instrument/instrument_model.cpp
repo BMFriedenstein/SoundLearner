@@ -6,6 +6,7 @@
  */
 #include "instrument_model.h"
 
+#include <random>
 #include <stdio.h>
 #include <iostream>
 using namespace std;
@@ -103,7 +104,7 @@ vector<int16_t> InstrumentModelC::GenerateIntSignal( double velocity, double fre
     }
 
     // Initiate each of the strings
-    for( auto string_iter = begin (sound_strings); string_iter != end (sound_strings); ++string_iter ){
+    for( auto string_iter = begin (sound_strings); string_iter != end(sound_strings); ++string_iter ){
         string_iter->get()->PrimeString( frequency, velocity );
     }
 
@@ -126,4 +127,29 @@ vector<int16_t> InstrumentModelC::GenerateIntSignal( double velocity, double fre
     }
 
     return Signal;
+}
+
+
+unique_ptr<InstrumentModelC> InstrumentModelC::TuneInstrument( uint8_t amount ){
+    unique_ptr<InstrumentModelC> mutant_instrument;
+    random_device random_device; // obtain a random number from hardware
+    mt19937 eng(random_device()); // seed the generator
+    uniform_real_distribution<> real_distr(0, 1); // define the range
+    bool create_new = real_distr(eng) < 0.1;
+
+    if( create_new ){
+        mutant_instrument = unique_ptr<InstrumentModelC>(
+            new InstrumentModelC( sound_strings.size(), "new_" + to_string(time(nullptr)) )
+        );
+    }
+    else{
+        mutant_instrument = unique_ptr<InstrumentModelC>(
+            new InstrumentModelC( 0, "new_" + to_string(time(nullptr)) )
+        );
+        for (auto string_iter = begin(sound_strings); string_iter != end(sound_strings); ++string_iter) {
+            auto mutant_string = string_iter->get()->TuneString(amount);
+            mutant_instrument->AddTunedString( *mutant_string );
+        }
+    }
+    return mutant_instrument;
 }
