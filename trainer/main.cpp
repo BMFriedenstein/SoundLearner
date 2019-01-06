@@ -11,12 +11,13 @@
 #include "include/common.h"
 #include "instrument/instrument_model.h"
 #include "instrument/string_oscillator.h"
+#include "wave/wave.h"
 #include "trainer.h"
 
 static void  AppUsage(){
     std::cerr << "Usage: \n"
               << "-n --size <100 instruments> \n"
-              << "-t --time <train for 10000s> \n"
+              << "-N --num-gen <train for 1 generation> \n"
               << "-a --target <train.wav> \n"
               << "-m --midi <train.mid>\n"
               << "-s --instrument-size <100>\n"
@@ -34,11 +35,11 @@ int main(int argc, char** argv){
     uint16_t start_instrument_size = 10;
     uint16_t max_instrument_size = 1000;
     uint16_t instrument_growth = 0;
-    uint32_t training_time = 10000;
+    uint16_t training_generations = 1;
     std::string audio_file = "train.wav";
     std::string midi_file = "train.mid";
-    bool save_progression = true;
     std::string progression_output = "./progression/";
+    bool save_progression = true;
 
     // Parse arguments
     for ( int i = 1; i < argc; i++) {
@@ -48,7 +49,7 @@ int main(int argc, char** argv){
             return EXIT_NORMAL;
         }
         if (((arg == "-n") || (arg == "--size") ||
-            (arg == "-t") || (arg == "--time") ||
+            (arg == "-N") || (arg == "--num-gen") ||
             (arg == "-a") || (arg == "--target") ||
             (arg == "-m") || (arg == "--midi") ||
             (arg == "-r") || (arg == "--instrument-growth-rate") ||
@@ -57,11 +58,12 @@ int main(int argc, char** argv){
             (arg == "-p") || (arg == "--progression")) &&
             (i + 1 < argc)) {
             std::string arg2 = argv[++i];
+            // Todo check if argument is numeric
             if( (arg == "-n") || (arg == "--size")){
                 class_size = (uint16_t)std::stol(arg2);
             }
-            else if ((arg == "-t") || (arg == "--time")){
-                training_time = (uint32_t)std::stoul(arg2);
+            else if ((arg == "-N") || (arg == "--num-gen")){
+                training_generations = (uint16_t)std::stoul(arg2);
             }
             else if ((arg == "-a") || (arg == "--target")){
                 audio_file = arg2;
@@ -95,7 +97,7 @@ int main(int argc, char** argv){
 
     // Some debug
 	std::cout << "Starting trainer... " << std::endl;
-	std::cout << "\tTraining time: " << training_time << " seconds" << std::endl;
+	std::cout << "\tTraining generations: " << training_generations << " generations" << std::endl;
 	std::cout << "\tSource audio: " << audio_file << std::endl;
 	std::cout << "\tSource MIDI: " << midi_file << std::endl;
 	std::cout << "\tClass size: " << class_size << std::endl;
@@ -106,11 +108,22 @@ int main(int argc, char** argv){
 	    std::cout << "\tProgression saved to: " << progression_output << std::endl;
 	}
 
-	// Todo Read source wav file into memory
-	// Todo Read midi file into memory
-	// Todo Create models
-	// Todo create trainer class
-	// Todo start training
+	// Read source wav file into memory
+	WaveReaderC wav_rdr = WaveReaderC( audio_file );
+	std::vector<int16_t> source_signal = wav_rdr.ToMono16BitWave();
+	std::cout << "Reading source audio file... " << std::endl;
+    std::cout << wav_rdr.HeaderToString() << std::endl;
+
+    // Todo Read midi file into memory
+
+    // Create Trainer class
+    InstumentTrainerC trainer = InstumentTrainerC(class_size,
+            start_instrument_size,
+            source_signal,
+            training_generations);
+    trainer.Start(training_generations);
+
+
 	return EXIT_NORMAL;
 }
 
