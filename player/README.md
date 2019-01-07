@@ -1,7 +1,7 @@
-# StringSounds #
-*An AI'ish approach to modelling musical instruments*
+# SoundLearner #
+*A machine learning'ish approach to modelling musical instruments*
 - - - -
 
 ## Player
-
-This application loads a _strings_ instrument model. Audio is then created from a midi input. 
+The player is designed to be run on a raspberry pi.
+This application loads an *instrument model*. Audio is then generated based from midi input and passed on ato an audio device. 
