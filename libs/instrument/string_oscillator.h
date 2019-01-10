@@ -1,62 +1,71 @@
 /*
+ * This file is subject to the terms and conditions defined in
+ * file 'LICENSE.txt', which is part of this source code package.
+ *
  * sound_string.h
  *
  *  Created on: 03 Jan 2019
  *      Author: brandon
  */
 
-#ifndef STRING_OSCILLATOR_H_
-#define STRING_OSCILLATOR_H_
+#ifndef STRINGSOUNDS_LIBS_INSTRUMENT_STRING_OSCILLATOR_H_
+#define STRINGSOUNDS_LIBS_INSTRUMENT_STRING_OSCILLATOR_H_
+
+#include <math.h>
 #include <memory>
 #include <string>
-#include <math.h>
 
-#include "../include/common.h"
+#include "include/common.h"
 
+namespace instrument {
+namespace oscillator {
 class StringOscillatorC {
-private:
-    /* Sinusoid's start definition */
-    double start_phase;
-    double start_frequency_factor;
-    double start_amplitude_factor;
-
-    /* Signal modification definition */
-    double sustain_factor;
-    double amp_attack_delta = 0;
-    double amp_decay_rate = 0;
-    double freq_attack_delta= 0;
-    double freq_decay_rate = 0;
-
-    /* Signal State */
-    double max_amp = 0;
-    double max_freq = 0;
-    double amp_state = 0;
-    double freq_state = 0;
-    double base_freq = 0;
-    double velocity = 0;
-    uint32_t sample_no = 0;
-    bool in_amp_decay=false;
-    bool in_freq_decay=false;
-
-    inline double SineWave(){
-        return amp_state * sin ( (((double)sample_no/(double)SAMPLE_RATE)*2.0*PI*freq_state) - start_phase );
-    }
 public:
-    StringOscillatorC(   double a_phase,
-                    double a_freq_factor,
-                    double a_amp_factor,
-                    double a_sus_factor,
-                    double a_amp_decay,
-                    double a_amp_attack,
-                    double a_freq_decay,
-                    double a_freq_attack);
-
-    void PrimeString( double freq, double velocity );
-    double NextSample( bool sustain );
-    uint32_t GetSampleNumber() { return sample_no; }
+    StringOscillatorC(
+            const double phase,
+            const double freq_factor,
+            const double amp_factor,
+            const double sus_factor,
+            const double amp_decay,
+            const double amp_attack,
+            const double freq_decay,
+            const double freq_attack
+    );
+    void PrimeString(const double freq, const double velocity);
+    double NextSample(const bool sustain);
+    inline uint32_t GetSampleNumber() { return sample_num_; }
     std::string ToJson();
-    std::unique_ptr<StringOscillatorC> TuneString( uint8_t amount );
+    std::unique_ptr<StringOscillatorC> TuneString(const uint8_t amount);
     static std::unique_ptr<StringOscillatorC> CreateUntunedString();
-};
+private:
+    // Sinusoid's start definition
+    double start_phase_;
+    double start_frequency_factor_;
+    double start_amplitude_factor_;
 
-#endif /* STRING_OSCILLATOR_H_ */
+    // Signal modification definition
+    double sustain_factor_;
+    double amplitude_attack_delta_     = 0;
+    double amplitude_decay_rate_       = 0;
+    double frequency_attack_delta_    = 0;
+    double frequency_decay_rate_      = 0;
+
+    // Signal State
+    double max_amplitude_      = 0;
+    double max_frequency_     = 0;
+    double amplitude_state_    = 0;
+    double frequency_state_   = 0;
+    double base_frequency_    = 0;
+    uint32_t sample_num_  = 0;
+    bool in_amplitude_decay   = false;
+    bool in_frequency_decay  = false;
+
+    inline double SineWave() {
+        return amplitude_state_ * sin(
+            ((static_cast<double>(sample_num_)/static_cast<double>(SAMPLE_RATE)) * 2.0 * PI * frequency_state_) - start_phase_
+        );
+    }
+};
+} // namespace oscillator
+} // namespace instrument
+#endif // STRINGSOUNDS_LIBS_INSTRUMENT_STRING_OSCILLATOR_H_

@@ -1,54 +1,60 @@
 /*
+ * This file is subject to the terms and conditions defined in
+ * file 'LICENSE.txt', which is part of this source code package.
+ *
  * model.cpp
  *
  *  Created on: 03 Jan 2019
  *      Author: brandon
  */
+
 #include "instrument_model.h"
 
-#include <random>
 #include <stdio.h>
+#include <random>
 #include <iostream>
-using namespace std;
 
-InstrumentModelC::InstrumentModelC( uint16_t a_num_strings, string a_instrument_name ){
-    name = a_instrument_name;
-    for( uint16_t i =0; i < a_num_strings; i++ ){
+namespace instrument {
+InstrumentModelC::InstrumentModelC(const uint16_t num_strings, const std::string& instrument_name){
+    error_score_ = std::numeric_limits<double>::max();
+    name_ = instrument_name;
+    sound_strings_.reserve(num_strings);
+    for( uint16_t i =0; i < num_strings; i++ ){
         AddUntunedString();
     }
 }
 
 /*
  * Add a pre tuned string to the instrument
- * @parameters: reference to a a_tuned_string (StringOscillatorC),
- * @returns none
+ * @params: reference to a a_tuned_string (StringOscillatorC),
+ * @returns: none
  */
-void InstrumentModelC::AddTunedString(StringOscillatorC& a_tuned_string){
-    unique_ptr<StringOscillatorC> tuned_string( new StringOscillatorC( move(a_tuned_string) ) );
-    sound_strings.push_back(std::move(tuned_string));
+void InstrumentModelC::AddTunedString(const oscillator::StringOscillatorC a_tuned_string){
+    std::unique_ptr<oscillator::StringOscillatorC> tuned_string( new oscillator::StringOscillatorC( a_tuned_string ) );
+    sound_strings_.push_back(std::move(tuned_string));
 }
 
 /*
  * Add a randomly tuned string sound to the instrument
- * @parameters: none,
- * @returns none
+ * @params: none,
+ * @returns: none
  */
 void InstrumentModelC::AddUntunedString(){
-    sound_strings.push_back(std::move(StringOscillatorC::CreateUntunedString()));
+    sound_strings_.push_back(std::move(oscillator::StringOscillatorC::CreateUntunedString()));
 }
 
 /*
  * Create a JSON representation of the instrument
- * @parameters: none,
- * @returns JSON string
+ * @params: none,
+ * @returns: JSON string
  */
-string InstrumentModelC::ToJson(){
-    string return_json = "{\n";
-    return_json += "\"name\": \"" + name + "\",\n";
+std::string InstrumentModelC::ToJson(){
+    std::string return_json = "{\n";
+    return_json += "\"name\": \"" + name_ + "\",\n";
     return_json += "\"strings\": {\n";
-    for( auto string_iter = begin (sound_strings); string_iter != end (sound_strings); ++string_iter ){
-        return_json += string_iter->get()->ToJson();
-        if ( string_iter +1 != sound_strings.end()){
+    for( size_t j=0; j<sound_strings_.size(); j++ ){
+        return_json += sound_strings_[j]->ToJson();
+        if ( j +1 != sound_strings_.size()){
             return_json += ",\n";
         }
     }
@@ -59,97 +65,114 @@ string InstrumentModelC::ToJson(){
 
 /*
  * Generates a array of double sample values representing the sound of the note played
- * @parameters: velocity(speed of note played), frequency(Which note), number of sample to generate, array of sustain values
+ * @params: velocity(speed of note played), frequency(Which note), number of sample to generate, array of sustain values
  * @returns: vector of doubles
  */
-vector<double> InstrumentModelC::GenerateSignal( double velocity, double frequency, uint32_t num_of_samples, vector<bool>& sustain ){
-    vector<double> Signal(num_of_samples);
+std::vector<double> InstrumentModelC::GenerateSignal(
+        const double velocity,
+        const double frequency,
+        const uint32_t num_of_samples,
+        std::vector<bool>& sustain){
+    std::vector<double> signal(num_of_samples);
 
     // Check that we have a sustain value for each sample
     if( sustain.size() != num_of_samples ){
-        cout << "Warning!!! Sustain array not equal to sample length" << endl;
+        std::cout << "Warning!!! Sustain array not equal to sample length" << std::endl;
         sustain.resize(num_of_samples);
     }
 
     // Initiate each of the strings
-    for( auto string_iter = begin (sound_strings); string_iter != end (sound_strings); ++string_iter ){
-        string_iter->get()->PrimeString(frequency,velocity);
+    for( size_t i=0; i<sound_strings_.size(); i++ ){
+        sound_strings_[i]->PrimeString( frequency, velocity );
     }
 
     // Generate samples
     for( uint32_t i =0; i < num_of_samples; i++ ){
         double sample_val = 0;
 
-        for( auto string_iter = begin (sound_strings); string_iter != end (sound_strings); ++string_iter ){
-            sample_val += string_iter->get()->NextSample(sustain[i]);
+        for( size_t j=0; j<sound_strings_.size(); j++ ){
+            sample_val += sound_strings_[j]->NextSample( sustain[i] );
         }
-        Signal[i] = sample_val;
+        signal[i] = sample_val;
     }
 
-    return Signal;
+    return signal;
 }
 
 /*
  * Generates a array of rounded integer sample values representing the sound of the note played
- * @parameters: velocity(speed of note played), frequency(Which note), number of sample to generate, array of sustain values
+ * @params: velocity(speed of note played), frequency(Which note), number of sample to generate, array of sustain values
  * @returns: vector of integers
  */
-vector<int16_t> InstrumentModelC::GenerateIntSignal( double velocity, double frequency, uint32_t num_of_samples, vector<bool>& sustain ){
-    vector<int16_t> Signal(num_of_samples);
+std::vector<int16_t> InstrumentModelC::GenerateIntSignal(
+        const double velocity,
+        const double frequency,
+        const uint32_t num_of_samples,
+        std::vector<bool>& sustain ){
+    std::vector<int16_t> signal(num_of_samples);
 
     // Check that we have a sustain value for each sample
     if( sustain.size() != num_of_samples){
-        cout << "Warning!!! Sustain array not equal to sample length" << endl;
+        std::cout << "Warning!!! Sustain array not equal to sample length" << std::endl;
         sustain.resize(num_of_samples);
     }
 
     // Initiate each of the strings
-    for( auto string_iter = begin (sound_strings); string_iter != end(sound_strings); ++string_iter ){
-        string_iter->get()->PrimeString( frequency, velocity );
+    for(size_t i=0; i<sound_strings_.size(); i++){
+        sound_strings_[i]->PrimeString(frequency, velocity);
     }
 
     // Generate samples
-    for( uint32_t i =0; i < num_of_samples; i++ ){
+    for(uint32_t i =0; i<num_of_samples; i++){
         double sample_val = 0;
-        for( auto string_iter = begin (sound_strings); string_iter != end (sound_strings); ++string_iter ){
-            sample_val += string_iter->get()->NextSample( sustain[i] );
+        for(size_t j=0; j<sound_strings_.size(); j++ ){
+            sample_val += MAX_AMP*sound_strings_[j]->NextSample(sustain[i]);
         }
 
-        if( sample_val > MAX_AMP){ sample_val = MAX_AMP; }
-        if( sample_val < MIN_AMP){ sample_val = MIN_AMP; }
-
+        // Convert to int
+        if(sample_val > MAX_AMP){ sample_val = MAX_AMP; }
+        else if(sample_val < MIN_AMP){ sample_val = MIN_AMP; }
         if(sample_val <0){
-            Signal[i] = (int16_t)int(sample_val - 0.5);
+            signal[i] = static_cast<int>(sample_val - 0.5);
         }
         else{
-            Signal[i] = (int16_t)int(sample_val + 0.5);
+            signal[i] = static_cast<int>(sample_val + 0.5);
         }
     }
 
-    return Signal;
+    return signal;
 }
 
-
-unique_ptr<InstrumentModelC> InstrumentModelC::TuneInstrument( uint8_t amount ){
-    unique_ptr<InstrumentModelC> mutant_instrument;
-    random_device random_device; // obtain a random number from hardware
-    mt19937 eng(random_device()); // seed the generator
-    uniform_real_distribution<> real_distr(0, 1); // define the range
+/*
+ * Create a new instrument slightly mutated from this instrument model
+ * @params: amount( mutation amount)
+ * @returns: unique pointer to an instrument
+ */
+std::unique_ptr<InstrumentModelC> InstrumentModelC::TuneInstrument(const uint8_t amount){
+    std::unique_ptr<InstrumentModelC> mutant_instrument;
+    std::random_device random_device;                   // obtain a random number from hardware
+    std::mt19937 eng(random_device());                  // seed the generator
+    std::uniform_real_distribution<> real_distr(0, 1);  // define the range
     bool create_new = real_distr(eng) < 0.1;
 
     if( create_new ){
-        mutant_instrument = unique_ptr<InstrumentModelC>(
-            new InstrumentModelC( sound_strings.size(), "new_" + to_string(time(nullptr)) )
+        mutant_instrument = std::unique_ptr<InstrumentModelC>(
+            new InstrumentModelC( sound_strings_.size(), "new_" + std::to_string(time(nullptr)) )
         );
     }
     else{
-        mutant_instrument = unique_ptr<InstrumentModelC>(
-            new InstrumentModelC( 0, "new_" + to_string(time(nullptr)) )
+        mutant_instrument = std::unique_ptr<InstrumentModelC>(
+            new InstrumentModelC(0, "new_" + std::to_string(time(nullptr)))
         );
-        for (auto string_iter = begin(sound_strings); string_iter != end(sound_strings); ++string_iter) {
-            auto mutant_string = string_iter->get()->TuneString(amount);
-            mutant_instrument->AddTunedString( *mutant_string );
+        for(size_t j=0; j<sound_strings_.size(); j++){
+            bool keep_tune = real_distr(eng) < 0.1;
+            if(!keep_tune){
+                mutant_instrument->AddTunedString(*sound_strings_[j]->TuneString(amount));
+            }else{
+                mutant_instrument->AddTunedString(*sound_strings_[j]);
+            }
         }
     }
     return mutant_instrument;
 }
+} // namespace instrument
