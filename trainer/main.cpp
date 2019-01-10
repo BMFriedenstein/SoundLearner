@@ -24,7 +24,7 @@ static void  AppUsage(){
               << "-M --max-instrument-size <1000>\n"
               << "-r --instrument-growth-rate <0> (generations per increase)\n"
               << "-m --midi <train.mid>\n"
-              << "-p --progression <./training/> (save progresion)"
+              << "-p --progression <> (save progresion)"
               << std::endl;
 }
 
@@ -38,11 +38,10 @@ int main(int argc, char** argv){
     uint16_t training_generations = 1;
     std::string audio_file = "train.wav";
     std::string midi_file = "train.mid";
-    std::string progression_output = "./progression/";
-    bool save_progression = true;
+    std::string progression_output = "";
 
     // Parse arguments
-    for ( int i = 1; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if ((arg == "-h") || (arg == "--help")) {
             AppUsage();
@@ -81,7 +80,6 @@ int main(int argc, char** argv){
                 max_instrument_size = (uint16_t)std::stol(arg2);
             }
             else if ((arg == "-p") || (arg == "--progression")){
-                save_progression = true;
                 progression_output = arg2;
             }
         }
@@ -91,9 +89,8 @@ int main(int argc, char** argv){
         }
     }
 
-
-    // Sanity check
-    if( start_instrument_size > max_instrument_size ){ start_instrument_size = max_instrument_size; }
+    // Sanity checks
+    if(start_instrument_size > max_instrument_size){ start_instrument_size = max_instrument_size; }
 
     // Some debug
 	std::cout << "Starting trainer... " << std::endl;
@@ -104,7 +101,7 @@ int main(int argc, char** argv){
 	std::cout << "\tStarting instrument size: " << start_instrument_size << std::endl;
 	std::cout << "\tMaximum instrument size: " << max_instrument_size << std::endl;
 	std::cout << "\tInstrument growth rate: " << instrument_growth << " generations per increase" << std::endl;
-	if(save_progression){
+	if(!progression_output.empty()){
 	    std::cout << "\tProgression saved to: " << progression_output << std::endl;
 	}
 
@@ -114,15 +111,18 @@ int main(int argc, char** argv){
 	std::cout << "Reading source audio file... " << std::endl;
     std::cout << wav_rdr.HeaderToString() << std::endl;
 
-    // Todo Read midi file into memory
+    // TODO Read MIDI file into memory
 
     // Create Trainer class
-    InstumentTrainerC trainer = InstumentTrainerC(class_size,
-            start_instrument_size,
-            source_signal,
-            training_generations);
+    trainer::GeneticInstumentTrainerC trainer = {
+        start_instrument_size,
+        class_size,
+        source_signal,
+        progression_output,
+        instrument_growth
+    };
+    std::cout << "Starting Training... " << std::endl;
     trainer.Start(training_generations);
-
 
 	return EXIT_NORMAL;
 }
