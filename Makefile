@@ -1,12 +1,10 @@
-SUBDIRS :=libs trainer player 
+SUBDIRS := instrument midi trainer player 
 
-all: $(SUBDIRS)
-clean: $(SUBDIRS)
-make_trainer: trainer
-make_player: player
-make_libs: libs
+all: src/$(SUBDIRS)
+clean: src/$(SUBDIRS)
+	rm include/*.a
 
 $(SUBDIRS):
-	$(MAKE) -C $@ $(MAKECMDGOALS)
+	$(MAKE) -C src/$@ $(MAKECMDGOALS)
 
 .PHONY: all $(SUBDIRS) clean

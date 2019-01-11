@@ -1,5 +1,4 @@
 SUBDIRS := $(wildcard */.)
-SUBDIRS := $(filter-out include/., $(SUBDIRS))
 
 all: $(SUBDIRS)
 clean: $(SUBDIRS)
