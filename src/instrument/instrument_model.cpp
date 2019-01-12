@@ -15,8 +15,9 @@
 #include "instrument/instrument_model.h"
 
 #include <cstdio>
-#include <limits>
+
 #include <iostream>
+#include <limits>
 #include <string>
 #include <random>
 #include <utility>
@@ -33,8 +34,8 @@ InstrumentModelC::InstrumentModelC(const uint16_t num_strings,
 }
 
 /*
- * Add a pre tuned string to the instrument
- * @params: reference to a a_tuned_string (StringOscillatorC),
+ * Add a pre-tuned string to the instrument.
+ * @parameters: reference to a a_tuned_string (StringOscillatorC),
  * @returns: none
  */
 void InstrumentModelC::AddTunedString(
@@ -45,8 +46,8 @@ void InstrumentModelC::AddTunedString(
 }
 
 /*
- * Add a randomly tuned string sound to the instrument
- * @params: none,
+ * Add a randomly tuned string sound to the instrument.
+ * @parameters: none,
  * @returns: none
  */
 void InstrumentModelC::AddUntunedString() {
@@ -55,8 +56,8 @@ void InstrumentModelC::AddUntunedString() {
 }
 
 /*
- * Create a JSON representation of the instrument
- * @params: none,
+ * Create a JSON representation of the instrument.
+ * @parameters: none,
  * @returns: JSON string
  */
 std::string InstrumentModelC::ToJson() {
@@ -75,9 +76,9 @@ std::string InstrumentModelC::ToJson() {
 
 /*
  * Generates a array of double sample values representing
- * the sound of the note played
- * @params: velocity(speed of note played), frequency(Which note),
- *          number of sample to generate, array of sustain values
+ * the sound of the note played.
+ * @parameters: velocity(speed of note played), frequency(Which note),
+ *          number of sample to generate, array of sustain values.
  * @returns: vector of doubles
  */
 std::vector<double> InstrumentModelC::GenerateSignal(
@@ -85,19 +86,19 @@ std::vector<double> InstrumentModelC::GenerateSignal(
     const uint32_t num_of_samples, std::vector<bool>& sustain) {
   std::vector<double> signal(num_of_samples);
 
-  // Check that we have a sustain value for each sample
+  // Check that we have a sustain value for each sample.
   if (sustain.size() != num_of_samples) {
     std::cout << "Warning!!! Sustain array not equal to sample length"
               << std::endl;
     sustain.resize(num_of_samples);
   }
 
-  // Initiate each of the strings
+  // Initiate each of the strings.
   for (size_t i = 0; i < sound_strings_.size(); i++) {
     sound_strings_[i]->PrimeString(frequency, velocity);
   }
 
-  // Generate samples
+  // Generate samples.
   for (uint32_t i = 0; i < num_of_samples; i++) {
     double sample_val = 0;
 
@@ -112,9 +113,9 @@ std::vector<double> InstrumentModelC::GenerateSignal(
 
 /*
  * Generates a array of rounded integer sample values representing
- * the sound of the note played
- * @params: velocity(speed of note played), frequency(Which note),
- *          number of sample to generate, array of sustain values
+ * the sound of the note played.
+ * @parameters: velocity(speed of note played), frequency(Which note),
+ *          number of sample to generate, array of sustain values.
  * @returns: vector of integers
  */
 std::vector<int16_t> InstrumentModelC::GenerateIntSignal(
@@ -122,26 +123,26 @@ std::vector<int16_t> InstrumentModelC::GenerateIntSignal(
     const uint32_t num_of_samples, std::vector<bool>& sustain) {
   std::vector<int16_t> signal(num_of_samples);
 
-  // Check that we have a sustain value for each sample
+  // Check that we have a sustain value for each sample.
   if (sustain.size() != num_of_samples) {
     std::cout << "Warning!!! Sustain array not equal to sample length"
               << std::endl;
     sustain.resize(num_of_samples);
   }
 
-  // Initiate each of the strings
+  // Initiate each of the strings.
   for (size_t i = 0; i < sound_strings_.size(); i++) {
     sound_strings_[i]->PrimeString(frequency, velocity);
   }
 
-  // Generate samples
+  // Generate samples.
   for (uint32_t i = 0; i < num_of_samples; i++) {
     double sample_val = 0;
     for (size_t j = 0; j < sound_strings_.size(); j++) {
       sample_val += MAX_AMP * sound_strings_[j]->NextSample(sustain[i]);
     }
 
-    // Convert to int
+    // Convert to int32.
     if (sample_val > MAX_AMP) {
       sample_val = MAX_AMP;
     } else if (sample_val < MIN_AMP) {
@@ -158,16 +159,16 @@ std::vector<int16_t> InstrumentModelC::GenerateIntSignal(
 }
 
 /*
- * Create a new instrument slightly mutated from this instrument model
- * @params: amount( mutation amount)
+ * Create a new instrument slightly mutated from this instrument model.
+ * @parameters: amount(mutation amount).
  * @returns: unique pointer to an instrument
  */
 std::unique_ptr<InstrumentModelC> InstrumentModelC::TuneInstrument(
     const uint8_t amount) {
   std::unique_ptr<InstrumentModelC> mutant_instrument;
-  std::random_device random_device;      // obtain a random number from hardware
-  std::mt19937 eng(random_device());                  // seed the generator
-  std::uniform_real_distribution<> real_distr(0, 1);  // define the range
+  std::random_device random_device;                   // obtain a random number from hardware.
+  std::mt19937 eng(random_device());                  // seed the generator.
+  std::uniform_real_distribution<> real_distr(0, 1);  // define the range.
   bool create_new = real_distr(eng) < 0.1;
 
   if (create_new) {

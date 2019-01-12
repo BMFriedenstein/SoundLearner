@@ -22,7 +22,7 @@
 WaveReaderC::WaveReaderC(const std::string & a_filename) {
   filename = a_filename;
 
-  // Open file
+  // Open file.
   std::ifstream wav_file(a_filename, std::ios::binary);
   if (!wav_file.is_open()) {
     std::cout << "ERROR!!! Could not open wave file " << a_filename
@@ -31,7 +31,7 @@ WaveReaderC::WaveReaderC(const std::string & a_filename) {
   }
   wav_file.unsetf(std::ios::skipws);
 
-  // Get file size
+  // Get file size.
   wav_file.seekg(0, std::ios::end);
   size_t file_size = wav_file.tellg();
   wav_file.seekg(0, std::ios::beg);
@@ -89,10 +89,10 @@ std::vector<int16_t> WaveReaderC::ToMono16BitWave() {
              static_cast<int>(wav_data.size()));
       return out_vector;
     }
-    // TODO(Brandon): Handle other Bit depth
+    // TODO(Brandon): Handle other Bit depth.
   }
 
-  // TODO(Brandon) Handle other formats
+  // TODO(Brandon): Handle other formats.
   return std::vector<int16_t>(wav_data.size());
 }
 

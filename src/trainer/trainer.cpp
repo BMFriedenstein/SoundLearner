@@ -60,26 +60,26 @@ GeneticInstumentTrainerC::GeneticInstumentTrainerC(
 }
 
 /*
- * Calculate the average mean error for the generated signals of each trainee instrument
+ * Calculate the average mean error for the generated signals of each trainee instrument.
  * in class
  */
 double InstumentTrainerC::GetError(
     const std::vector<int16_t>& instrument_audio) {
 
-  // Check the source audio is the right size
+  // Check the source audio is the right size.
   if (instrument_audio.size() != source_audio_.size()) {
     std::cout << "WARN !!! BAD audio size" << std::endl;
     return std::numeric_limits<double>::max();
   }
 
-  // Get energy in sample
+  // Get energy in sample.
   int64_t sample_energy_int = 0;
   for (size_t s = 0; s < instrument_audio.size(); s++) {
     sample_energy_int += instrument_audio[s];
   }
   double sample_energy = static_cast<double>(sample_energy_int);
 
-  // Calculate corrected mean absolute error
+  // Calculate corrected mean absolute error.
   double energy_correction = source_energy_ / sample_energy;
   double sum_abs_error = 0;
   for (size_t s = 0; s < source_audio_.size(); s++) {
@@ -88,7 +88,7 @@ double InstumentTrainerC::GetError(
             - static_cast<double>(instrument_audio[s]));
   }
 
-  // Combine mean error and energy differential
+  // Combine mean error and energy differential.
   double final_error = (0.5 * sum_abs_error
       / static_cast<double>(source_audio_.size()))
       + (0.5 * std::abs(source_energy_ - sample_energy));
@@ -96,22 +96,22 @@ double InstumentTrainerC::GetError(
 }
 
 /*
- * Calculate the average mean error for the generated signals of each trainee instrument
- * in the class.
+ * Calculate the average mean error for the generated
+ * signals of each trainee instrument in the class.
  */
 void GeneticInstumentTrainerC::DetermineFitness() {
   double ave_error = 0.0;
   double min_error = std::numeric_limits<double>::max();
   std::vector<int16_t> best_instrument_sample(source_audio_.size());
-  // TODO(Brandon): Replace with midi
+  // TODO(Brandon): Replace with midi.
   sustain = std::vector<bool>(source_audio_.size(), true);
 
-  // Determine error score for each instrument for class
+  // Determine error score for each instrument for class.
   std::vector<int16_t> temp_sample;
   for (size_t i = 0; i < trainees_.size(); i++) {
     trainees_[i]->error_score_ = std::numeric_limits<double>::max();
 
-    // TODO(BRANDON): Add threading here to improve performance
+    // TODO(BRANDON): Add threading here to improve performance.
     temp_sample = trainees_[i]->GenerateIntSignal(velocity, base_frequency,
                                                   source_audio_.size(),
                                                   sustain);
@@ -125,11 +125,12 @@ void GeneticInstumentTrainerC::DetermineFitness() {
     }
   }
   ave_error = ave_error / trainees_.size();
-  // Log progression and write out best sample
+
+  // Log progression and write out best sample.
   if (!progress_location_.empty()) {
     std::cout << gen_count_ << ", " << min_error << ", " << ave_error
               << std::endl;
-    // TODO(Brandon) write JSON to file
+    // TODO(Brandon) write JSON to file.
     MonoWaveWriterC wave_writer(best_instrument_sample);
     wave_writer.Write(
         progress_location_ + "/Gen_" + std::to_string(gen_count_) + ".wav");
@@ -160,14 +161,15 @@ void GeneticInstumentTrainerC::Start(uint16_t a_num_of_generations) {
   }
   source_energy_ = static_cast<double>(source_energy_int);
 
-  // TODO(Brandon): Log to sepperate file
+  // TODO(Brandon): Log to separate file.
   std::cout << "Generation, " << "Top instrument error, " << "Average error "
             << std::endl;
 
   for (gen_count_ = 0; gen_count_ < num_generations_; gen_count_++) {
     DetermineFitness();
     GeneticAlgorithm();
-    // Add additional oscillator
+
+    // Add additional oscillator.
     if (gen_count_ != 0 && gens_per_addition_ > 0
         && gen_count_ % gens_per_addition_ == 0) {
       for (size_t i = 0; i < trainees_.size(); i++) {

@@ -26,7 +26,7 @@ class WaveReaderC {
   std::string HeaderToString();
   std::vector<int16_t> ToMono16BitWave();
 
-  // Todo for future.
+  // TODO(Brandon) for future.
   std::vector<int32_t> ToMono32BitWave();
   std::vector<float> ToMonoFloatWave();
 

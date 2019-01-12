@@ -13,15 +13,17 @@
  */
 
 #include <cstdio>
+
 #include <iostream>
 #include <string>
 #include <vector>
 
+#include "include/common.h"
 #include "instrument/string_oscillator.h"
 #include "instrument/instrument_model.h"
 #include "trainer/trainer.h"
 #include "wave/wave.h"
-#include "include/common.h"
+
 
 static void AppUsage() {
   std::cerr << "Usage: \n" << "-n --size <100 instruments> \n"
@@ -35,7 +37,7 @@ static void AppUsage() {
 }
 
 int main(int argc, char** argv) {
-  // Application defaults
+  // Application defaults.
   uint16_t class_size = 100;
   uint16_t start_instrument_size = 10;
   uint16_t max_instrument_size = 1000;
@@ -45,7 +47,7 @@ int main(int argc, char** argv) {
   std::string midi_file = "train.mid";
   std::string progression_output = "";
 
-  // Parse arguments
+  // Parse arguments.
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
     if ((arg == "-h") || (arg == "--help")) {
@@ -60,7 +62,7 @@ int main(int argc, char** argv) {
         || (arg == "--max-instrument-size") || (arg == "-p")
         || (arg == "--progression")) && (i + 1 < argc)) {
       std::string arg2 = argv[++i];
-      // Todo check if argument is numeric
+      // Todo check if argument is numeric.
       if ((arg == "-n") || (arg == "--size")) {
         class_size = (uint16_t) std::stol(arg2);
       } else if ((arg == "-N") || (arg == "--num-gen")) {
@@ -84,12 +86,12 @@ int main(int argc, char** argv) {
     }
   }
 
-  // Sanity checks
+  // Sanity checks.
   if (start_instrument_size > max_instrument_size) {
     start_instrument_size = max_instrument_size;
   }
 
-  // Some debug
+  // Some debug.
   std::cout << "Starting trainer... " << std::endl;
   std::cout << "\tTraining generations: " << training_generations
             << " generations" << std::endl;
@@ -106,14 +108,14 @@ int main(int argc, char** argv) {
     std::cout << "\tProgression saved to: " << progression_output << std::endl;
   }
 
-  // Read source wav file into memory
+  // Read source .wav file into memory.
   WaveReaderC wav_rdr = WaveReaderC(audio_file);
   std::vector<int16_t> source_signal = wav_rdr.ToMono16BitWave();
   std::cout << "Reading source audio file... " << std::endl;
   std::cout << wav_rdr.HeaderToString() << std::endl;
 
-  // TODO(Brandon): Read MIDI file into memory
-  // Create Trainer class
+  // TODO(Brandon): Read MIDI file into memory.
+  // Create Trainer class using input parameters.
   trainer::GeneticInstumentTrainerC trainer = { start_instrument_size,
       class_size, source_signal, progression_output, instrument_growth };
   std::cout << "Starting Training... " << std::endl;

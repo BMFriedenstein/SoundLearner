@@ -164,7 +164,8 @@ std::string StringOscillatorC::ToJson() {
 }
 
 /*
- * Returns a mutated version of the string, each parameter of the string sound only has a 50% likelihood of being mutated
+ * Returns a mutated version of the string, each parameter of the string
+ * sound only has a 50% likelihood of being mutated.
  * @parameters: severity(determines the severity of the mutation)
  * @returns: Sound string pointer
  */
@@ -172,8 +173,8 @@ std::unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(
     const uint8_t severity) {
   float sev_factor = severity / 255L;
 
-  std::random_device random_device;   // obtain a random number from hardware
-  std::mt19937 eng(random_device());  // seed the generator
+  std::random_device random_device;   // obtain a random number from hardware.
+  std::mt19937 eng(random_device());  // seed the generator.
   std::uniform_real_distribution<> real_distr(-sev_factor, sev_factor);
   double phase =
       start_phase_ + (real_distr(eng) > 0) ? 2 * PI * real_distr(eng) : 0;
@@ -204,14 +205,14 @@ std::unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(
 }
 
 /*
- * Generates a new completely randomized soundstring
+ * Generates a new completely randomized SoundString oscillator.
  * @parameters: none
  * @returns: Sound string pointer
  */
 std::unique_ptr<StringOscillatorC> StringOscillatorC::CreateUntunedString() {
-  std::random_device random_device;  // obtain a random number from hardware
-  std::mt19937 eng(random_device());  // seed the generator
-  std::uniform_real_distribution<> real_distr(0, 1);  // define the range
+  std::random_device random_device;                   // obtain a random number from hardware.
+  std::mt19937 eng(random_device());                  // seed the generator.
+  std::uniform_real_distribution<> real_distr(0, 1);  // define the range.
   double phase = 2 * PI * real_distr(eng);
   double freq_factor = 20 * real_distr(eng);
   double amp_factor = real_distr(eng);

@@ -63,7 +63,7 @@ class StringOscillatorC {
   bool in_frequency_decay = false;
 
   // Create sample of a sin function for given parameters (frequency, amplitude,
-  // sample rate, phase)
+  // sample rate, phase).
   //
   // f(x) = A*sin( (2*x*pi*f/N) -p)
   //
