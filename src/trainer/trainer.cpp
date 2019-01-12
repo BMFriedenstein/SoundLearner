@@ -28,7 +28,7 @@
 namespace instrument {
 inline bool cmp_by_name(const std::unique_ptr<InstrumentModelC>& a,
                         const std::unique_ptr<InstrumentModelC>& b) {
-  return *a < *b;
+  return a->error_score_ < b->error_score_;
 }
 }
 
@@ -65,34 +65,48 @@ GeneticInstumentTrainerC::GeneticInstumentTrainerC(
  */
 double InstumentTrainerC::GetError(
     const std::vector<int16_t>& instrument_audio) {
-
   // Check the source audio is the right size.
   if (instrument_audio.size() != source_audio_.size()) {
     std::cout << "WARN !!! BAD audio size" << std::endl;
-    return std::numeric_limits<double>::max();
+    return static_cast<double>(2 * MAX_AMP);
   }
 
-  // Get energy in sample.
-  int64_t sample_energy_int = 0;
-  for (size_t s = 0; s < instrument_audio.size(); s++) {
-    sample_energy_int += instrument_audio[s];
-  }
-  double sample_energy = static_cast<double>(sample_energy_int);
-
-  // Calculate corrected mean absolute error.
-  double energy_correction = source_energy_ / sample_energy;
   double sum_abs_error = 0;
+  double abs_abs_error = 0;
   for (size_t s = 0; s < source_audio_.size(); s++) {
     sum_abs_error += std::abs(
-        energy_correction * static_cast<double>(source_audio_[s])
+              static_cast<double>(source_audio_[s])
             - static_cast<double>(instrument_audio[s]));
-  }
 
-  // Combine mean error and energy differential.
-  double final_error = (0.5 * sum_abs_error
-      / static_cast<double>(source_audio_.size()))
-      + (0.5 * std::abs(source_energy_ - sample_energy));
-  return final_error;
+    abs_abs_error += std::abs(
+              std::abs(static_cast<double>(source_audio_[s]))
+            - std::abs(static_cast<double>(instrument_audio[s])));
+  }
+  return (0.5 * sum_abs_error + 0.5 * abs_abs_error) / source_audio_.size();
+
+  // Get energy in sample.
+  /*
+   double sample_energy = 0.0;
+   for (size_t s = 0; s < instrument_audio.size(); s++) {
+   sample_energy += instrument_audio[s];
+   }
+   if(sample_energy == 0){
+   return static_cast<double>(2*MAX_AMP);
+   }
+   // Calculate corrected mean absolute error.
+   double energy_correction = source_energy_ / sample_energy;
+   double sum_abs_error = 0;
+   for (size_t s = 0; s < source_audio_.size(); s++) {
+   sum_abs_error += std::abs(
+   energy_correction * static_cast<double>(source_audio_[s])
+   - static_cast<double>(instrument_audio[s]));
+   }
+
+   // Combine mean error and energy differential.
+   double final_error = 0.5 * (sum_abs_error / source_audio_.size())+
+   0.5 * (std::abs(source_energy_ - sample_energy));
+   return final_error;
+   */
 }
 
 /*
@@ -103,6 +117,7 @@ void GeneticInstumentTrainerC::DetermineFitness() {
   double ave_error = 0.0;
   double min_error = std::numeric_limits<double>::max();
   std::vector<int16_t> best_instrument_sample(source_audio_.size());
+
   // TODO(Brandon): Replace with midi.
   sustain = std::vector<bool>(source_audio_.size(), true);
 
@@ -130,6 +145,7 @@ void GeneticInstumentTrainerC::DetermineFitness() {
   if (!progress_location_.empty()) {
     std::cout << gen_count_ << ", " << min_error << ", " << ave_error
               << std::endl;
+
     // TODO(Brandon) write JSON to file.
     MonoWaveWriterC wave_writer(best_instrument_sample);
     wave_writer.Write(
@@ -139,15 +155,15 @@ void GeneticInstumentTrainerC::DetermineFitness() {
 
 /*
  * Determine which trainees survived this generation,
- * Replace killed off instruments with mutated survivors
+ * Replace killed off instruments with mutated survivors.
  */
 void GeneticInstumentTrainerC::GeneticAlgorithm() {
-  // Sort trainees
+  // Sort trainees. Then replace the bottom 75% trainees.
   std::sort(trainees_.begin(), trainees_.end(), instrument::cmp_by_name);
-  size_t keep_amount = trainees_.size() / 5L;
+  size_t keep_amount = trainees_.size() / 4;
   for (size_t i = 0; i < trainees_.size(); i++) {
     size_t keep_index = i % (keep_amount);
-    if (i > keep_amount) {
+    if (i >= keep_amount) {
       trainees_[i].reset(trainees_[keep_index]->TuneInstrument(100).release());
     }
   }
@@ -155,11 +171,10 @@ void GeneticInstumentTrainerC::GeneticAlgorithm() {
 
 void GeneticInstumentTrainerC::Start(uint16_t a_num_of_generations) {
   num_generations_ = a_num_of_generations;
-  int64_t source_energy_int = 0;
+  source_energy_ = 0.0;
   for (size_t s = 0; s < source_audio_.size(); s++) {
-    source_energy_int += source_audio_[s];
+    source_energy_ += source_audio_[s];
   }
-  source_energy_ = static_cast<double>(source_energy_int);
 
   // TODO(Brandon): Log to separate file.
   std::cout << "Generation, " << "Top instrument error, " << "Average error "
