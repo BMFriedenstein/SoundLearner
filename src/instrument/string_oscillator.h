@@ -24,6 +24,8 @@
 
 namespace instrument {
 namespace oscillator {
+const double min_decay_factor = 0.99998;
+
 class StringOscillatorC {
  public:
   StringOscillatorC(const double phase, const double freq_factor,

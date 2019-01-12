@@ -22,14 +22,14 @@ StringOscillatorC::StringOscillatorC(double phase, double freq_factor,
                                      double amp_decay, double amp_attack,
                                      double freq_decay, double freq_attack) {
   // Parameter limits.
-  if (amp_decay > 1) {
-    amp_decay = 1;
+  if (amp_decay > (1 - min_decay_factor)) {
+    amp_decay = (1 - min_decay_factor);
   }
   if (amp_decay < 0) {
     amp_decay = 0;
   }
-  if (freq_decay > 1) {
-    amp_decay = 1;
+  if (freq_decay > (1 - min_decay_factor)) {
+    amp_decay = (1 - min_decay_factor);
   }
   if (freq_decay < 0) {
     amp_decay = 0;
@@ -103,7 +103,8 @@ double StringOscillatorC::NextSample(const bool sustain) {
   if (!in_amplitude_decay) {
     amplitude_state_ = amplitude_state_ + amplitude_attack_delta_;
   } else {
-    double decay = (sustain ? sustain_factor_ : 1) * amplitude_decay_rate_;
+    double decay = (sustain ? sustain_factor_ : 1)
+        * (min_decay_factor + amplitude_decay_rate_);
     amplitude_state_ = amplitude_state_ * (decay > 1 ? 1 : decay);
   }
   if (amplitude_state_ < 0) {
@@ -117,7 +118,8 @@ double StringOscillatorC::NextSample(const bool sustain) {
   if (!in_frequency_decay) {
     frequency_state_ = frequency_state_ + frequency_attack_delta_;
   } else {
-    double decay = (sustain ? sustain_factor_ : 1) * frequency_decay_rate_;
+    double decay = (sustain ? sustain_factor_ : 1)
+        * (min_decay_factor + frequency_decay_rate_);
     frequency_state_ = frequency_state_ * (decay > 1 ? 1 : decay);
   }
   if (frequency_state_ < 0) {
@@ -171,7 +173,7 @@ std::string StringOscillatorC::ToJson() {
  */
 std::unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(
     const uint8_t severity) {
-  float sev_factor = severity / 255L;
+  double sev_factor = static_cast<double>(severity) / 255.0;
 
   std::random_device random_device;   // obtain a random number from hardware.
   std::mt19937 eng(random_device());  // seed the generator.
@@ -184,15 +186,16 @@ std::unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(
   double amp_factor =
       start_amplitude_factor_ + (real_distr(eng) > 0) ? real_distr(eng) : 0;
   double sus_factor =
-      sustain_factor_ + (real_distr(eng) > 0) ? 0.2 * real_distr(eng) : 0;
+      sustain_factor_ + (real_distr(eng) > 0) ? 0.00003 * real_distr(eng) : 0;
   double amp_decay =
       amplitude_decay_rate_ + (real_distr(eng) > 0) ?
-          0.0001 * real_distr(eng) : 0;
+          real_distr(eng) * (1.0 - min_decay_factor) : 0;
   double amp_attack =
       amplitude_attack_delta_ + (real_distr(eng) > 0) ?
           0.01 * real_distr(eng) : 0;
   double freq_decay =
-      frequency_decay_rate_ + (real_distr(eng) > 0) ? 0.1 * real_distr(eng) : 0;
+      frequency_decay_rate_ + (real_distr(eng) > 0) ?
+          real_distr(eng) * (1.0 - min_decay_factor) : 0;
   double freq_attack =
       frequency_attack_delta_ + (real_distr(eng) > 0) ?
           1000 * real_distr(eng) : 0;
@@ -210,16 +213,16 @@ std::unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(
  * @returns: Sound string pointer
  */
 std::unique_ptr<StringOscillatorC> StringOscillatorC::CreateUntunedString() {
-  std::random_device random_device;                   // obtain a random number from hardware.
+  std::random_device random_device;     // obtain a random number from hardware.
   std::mt19937 eng(random_device());                  // seed the generator.
   std::uniform_real_distribution<> real_distr(0, 1);  // define the range.
   double phase = 2 * PI * real_distr(eng);
   double freq_factor = 20 * real_distr(eng);
   double amp_factor = real_distr(eng);
-  double sus_factor = 0.99999 + 0.0000115 * real_distr(eng);
-  double amp_decay = 0.99995 + 0.00005 * real_distr(eng);
+  double sus_factor = min_decay_factor + 0.00003 * real_distr(eng);
+  double amp_decay = (1.0 - min_decay_factor) * real_distr(eng);
   double amp_attack = 0.01 * real_distr(eng);
-  double freq_decay = 0.9999 + 0.0001 * real_distr(eng);
+  double freq_decay = (1.0 - min_decay_factor) * real_distr(eng);
   double freq_attack = 1000 * real_distr(eng);
 
   auto untuned_string = std::unique_ptr<StringOscillatorC> {
