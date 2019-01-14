@@ -1,6 +1,6 @@
 CXX=g++
 CFLAGS=-Wall -O3 -g -std=c++11 -I./ -I../ -I../../
-SOURCES=main.cpp trainer.cpp
+SOURCES=main.cpp trainer.cpp progress_logger.cpp
 OBJS=$(SOURCES:.cpp=.o)
 TARGET= StringSoundsTrainer
 LIBS= midi wave instrument fft

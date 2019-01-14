@@ -27,7 +27,7 @@ namespace oscillator {
 
 const double MIN_AMPLITUDE_DECAY_RATE     = 0.99998;   // -3db in 0.1s
 const double MIN_FREQUENCY_DECAY_RATE     = 0.9999998;  // -3db in 100s
-const double MAX_AMPLITUDE_ATTACK_RATE    = 0.01;      // -3db in 1ms
+const double MAX_AMPLITUDE_ATTACK_RATE    = 0.0001;
 const double MAX_COUPLED_FREQUENCY_FACTOR   = 50.0;      //  50 * 440 > 20 kHz
 const double MAX_UNCOUPLED_FREQUENCY_FACTOR = 20000.0;   //  1.0 * 20 kHz
 const double SAMPLE_INCREMENT            = 1.0 / static_cast<double>(SAMPLE_RATE);

@@ -63,14 +63,14 @@ void InstrumentModelC::AddUntunedString() {
 std::string InstrumentModelC::ToJson() {
   std::string return_json = "{\n";
   return_json += "\"name\": \"" + name_ + "\",\n";
-  return_json += "\"strings\": {\n";
+  return_json += "\"strings\": [\n";
   for (size_t j = 0; j < sound_strings_.size(); j++) {
     return_json += sound_strings_[j]->ToJson();
     if (j + 1 != sound_strings_.size()) {
       return_json += ",\n";
     }
   }
-  return_json += "}\n}\n";
+  return_json += "]\n}\n";
   return return_json;
 }
 
