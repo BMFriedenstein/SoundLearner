@@ -30,13 +30,14 @@ class InstumentTrainerC {
  protected:
   std::vector<std::unique_ptr<instrument::InstrumentModelC>> trainees_;
   std::string progress_location_;
-  std::vector<int16_t> source_audio_;
-  double source_energy_ = 0;
+  std::vector<int16_t> src_audio_;
+  double src_energy_ = 0;
 
  public:
-  virtual double GetError(const std::vector<int16_t>& instrument_audio);
+  virtual double GetError(const std::vector<int16_t>& tgt_audio);
+  double CrossCorrelation(const std::vector<int16_t>& tgt_audio);
   InstumentTrainerC(uint16_t num_starting_occilators, uint16_t class_size,
-                    std::vector<int16_t>& source_audio,
+                    std::vector<int16_t>& src_audio,
                     std::string& progress_location);
   virtual ~InstumentTrainerC() {
   }

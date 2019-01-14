@@ -51,62 +51,67 @@ InstumentTrainerC::InstumentTrainerC(uint16_t num_starting_occilators,
 
 GeneticInstumentTrainerC::GeneticInstumentTrainerC(
     uint16_t num_starting_occilators, uint16_t class_size,
-    std::vector<int16_t>& source_audio, std::string& progress_location,
+    std::vector<int16_t>& src_audio, std::string& progress_location,
     uint32_t gens_per_addition)
     : trainer::InstumentTrainerC(num_starting_occilators, class_size,
-                                 source_audio, progress_location),
+                                 src_audio, progress_location),
       gens_per_addition_(gens_per_addition) {
-  std::vector<bool> sustain = std::vector<bool>(source_audio.size(), true);
+  std::vector<bool> sustain = std::vector<bool>(src_audio.size(), true);
 }
 
 /*
  * Calculate the average mean error for the generated signals of each trainee instrument.
  * in class
  */
-double InstumentTrainerC::GetError(
-    const std::vector<int16_t>& instrument_audio) {
-  // Check the source audio is the right size.
-  if (instrument_audio.size() != source_audio_.size()) {
+double InstumentTrainerC::GetError( const std::vector<int16_t>& tgt_audio) {
+
+  // Check the src audio is the right size.
+  if (tgt_audio.size() != src_audio_.size()) {
     std::cout << "WARN !!! BAD audio size" << std::endl;
-    return static_cast<double>(2 * MAX_AMP);
+    return 1.0;
   }
 
-  double sum_abs_error = 0;
-  double abs_abs_error = 0;
-  for (size_t s = 0; s < source_audio_.size(); s++) {
-    sum_abs_error += std::abs(
-              static_cast<double>(source_audio_[s])
-            - static_cast<double>(instrument_audio[s]));
-
-    abs_abs_error += std::abs(
-              std::abs(static_cast<double>(source_audio_[s]))
-            - std::abs(static_cast<double>(instrument_audio[s])));
+  // Get average energy difference.
+  double tgt_energy = 0;
+  for (size_t s = 0; s < src_audio_.size(); s++) {
+    tgt_energy += std::abs(tgt_audio[s]);
   }
-  return (0.5 * sum_abs_error + 0.5 * abs_abs_error) / source_audio_.size();
+  tgt_energy = tgt_energy / src_audio_.size();
+  double ave_energy_diff = std::abs(tgt_energy - src_energy_)
+      / static_cast<double>(MAX_AMP);
+  if (src_energy_ / tgt_energy > 5) {
+    return 1.0;
+  }
 
-  // Get energy in sample.
-  /*
-   double sample_energy = 0.0;
-   for (size_t s = 0; s < instrument_audio.size(); s++) {
-   sample_energy += instrument_audio[s];
-   }
-   if(sample_energy == 0){
-   return static_cast<double>(2*MAX_AMP);
-   }
-   // Calculate corrected mean absolute error.
-   double energy_correction = source_energy_ / sample_energy;
-   double sum_abs_error = 0;
-   for (size_t s = 0; s < source_audio_.size(); s++) {
-   sum_abs_error += std::abs(
-   energy_correction * static_cast<double>(source_audio_[s])
-   - static_cast<double>(instrument_audio[s]));
-   }
+  // Get The maximum difference.
+  double src_max = *std::max_element(src_audio_.begin(), src_audio_.end());
+  double tgt_max = *std::max_element(tgt_audio.begin(), tgt_audio.end());
+  double max_diff = std::abs(tgt_max -src_max)/static_cast<double>(MAX_AMP);
 
-   // Combine mean error and energy differential.
-   double final_error = 0.5 * (sum_abs_error / source_audio_.size())+
-   0.5 * (std::abs(source_energy_ - sample_energy));
-   return final_error;
-   */
+  // Determine cross correlation
+  double cross_corr = CrossCorrelation(tgt_audio);
+
+  return 0.333 * cross_corr + 0.333 * ave_energy_diff + 0.333 * max_diff;
+}
+
+double InstumentTrainerC::CrossCorrelation(
+    const std::vector<int16_t>& tgt_audio) {
+  // Get next power of 2
+  auto signal_length = static_cast<uint32_t>(pow(
+      2, ceil(log(src_audio_.size() * 2) / log(2))));
+
+  // Pad signals with { 0.0 0.0j }
+  std::vector<std::complex<double>> cmplx_src(signal_length, { 0.0, 0.0 });
+  std::vector<std::complex<double>> cmplx_tgt(signal_length, { 0.0, 0.0 });
+  std::vector<std::complex<double>> cmplx_corr(signal_length, { 0.0, 0.0 });
+  for (size_t s = 0; s < src_audio_.size(); s++) {
+    cmplx_src[s] = src_audio_[s];
+    cmplx_tgt[s] = tgt_audio[s];
+  }
+
+  Fft::convolve(cmplx_src, cmplx_tgt, cmplx_corr);
+
+  return src_audio_.size() / (std::abs(cmplx_corr[src_audio_.size()]));
 }
 
 /*
