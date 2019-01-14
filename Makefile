@@ -2,7 +2,6 @@ SUBDIRS := instrument midi trainer player
 
 all: src/$(SUBDIRS)
 clean: src/$(SUBDIRS)
-	rm include/*.a
 
 $(SUBDIRS):
 	$(MAKE) -C src/$@ $(MAKECMDGOALS)

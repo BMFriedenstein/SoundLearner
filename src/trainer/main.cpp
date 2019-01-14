@@ -91,6 +91,11 @@ int main(int argc, char** argv) {
     start_instrument_size = max_instrument_size;
   }
 
+  if (class_size < 10) {
+    std::cout << "Class size to small... " << std::endl;
+    return EXIT_BAD_ARGS;
+  }
+
   // Some debug.
   std::cout << "Starting trainer... " << std::endl;
   std::cout << "\tTraining generations: " << training_generations
@@ -112,7 +117,6 @@ int main(int argc, char** argv) {
   WaveReaderC wav_rdr = WaveReaderC(audio_file);
   std::vector<int16_t> source_signal = wav_rdr.ToMono16BitWave();
   std::cout << "Reading source audio file... " << std::endl;
-  std::cout << wav_rdr.HeaderToString() << std::endl;
 
   // TODO(Brandon): Read MIDI file into memory.
   // Create Trainer class using input parameters.

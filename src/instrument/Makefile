@@ -1,5 +1,5 @@
 CXX=g++
-CFLAGS=-Wall -O3 -std=c++11 -I../ -I./ -I../../
+CFLAGS=-Wall -O0 -std=c++11 -I../ -I./ -I../../
 SOURCES=string_oscillator.cpp instrument_model.cpp
 OBJ=$(SOURCES:.cpp=.o)
 TARGET=libinstrument.a
@@ -17,5 +17,5 @@ $(TARGET): $(OBJ)
 	$(CXX) -c $< -o $@  $(CFLAGS)
 
 clean:
-	rm -rf *.o *.d $(Target)
+	rm -rf *.o *.d $(Target) ../../include/$(TARGET)
 	

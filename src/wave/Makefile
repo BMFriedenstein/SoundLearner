@@ -17,4 +17,4 @@ $(TARGET): $(OBJ)
 	$(CXX) -c $< -o $@  $(CFLAGS)
 
 clean:
-	rm -rf *.o *.d $(TARGET)
+	rm -rf *.o *.d $(TARGET) ../../include/$(TARGET)
