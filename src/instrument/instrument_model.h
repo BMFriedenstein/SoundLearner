@@ -24,6 +24,7 @@ namespace instrument {
 class InstrumentModelC {
  public:
   double error_score_;
+  bool score_is_cached_ = false;
   InstrumentModelC(const uint16_t a_num_strings,
                    const std::string& a_instrument_name);
   std::string GetName() {
@@ -48,8 +49,8 @@ class InstrumentModelC {
     return error_score_ < other.error_score_;
   }
   // TODO(BRANDON) for player app:
-  // void PrimeNotePlayed( double frequency, double velocity);
-  // double GenerateNextSample( bool sustain );
+  // void PrimeNotePlayed(double frequency, double velocity);
+  // double GenerateNextSample(bool sustain);
  private:
   const uint16_t max_strings_ = 1000;
   std::vector<std::unique_ptr<oscillator::StringOscillatorC>> sound_strings_;

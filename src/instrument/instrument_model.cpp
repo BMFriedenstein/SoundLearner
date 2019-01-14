@@ -181,8 +181,7 @@ std::unique_ptr<InstrumentModelC> InstrumentModelC::TuneInstrument(
     for (size_t j = 0; j < sound_strings_.size(); j++) {
       bool keep_tune = real_distr(eng) < 0.1;
       if (!keep_tune) {
-        mutant_instrument->AddTunedString(
-            *sound_strings_[j]->TuneString(amount));
+        mutant_instrument->AddTunedString(*sound_strings_[j]->TuneString(amount));
       } else {
         mutant_instrument->AddTunedString(*sound_strings_[j]);
       }

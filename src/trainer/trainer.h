@@ -51,7 +51,7 @@ class GeneticInstumentTrainerC : public InstumentTrainerC {
   uint16_t gen_count_ = 0;
 
   // TODO(Brandon): replace with MIDI input.
-  double base_frequency = 98.0;
+  double base_frequency = 440.0;
   std::vector<bool> sustain;
   double velocity = 1.0;
 
@@ -61,7 +61,7 @@ class GeneticInstumentTrainerC : public InstumentTrainerC {
  public:
   GeneticInstumentTrainerC(uint16_t num_starting_occilators,
                            uint16_t class_size,
-                           std::vector<int16_t>& source_audio,
+                           std::vector<int16_t>& src_audio,
                            std::string& progress_location,
                            uint32_t gens_per_addition);
   ~GeneticInstumentTrainerC() {
