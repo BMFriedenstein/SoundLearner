@@ -21,14 +21,15 @@
 const uint32_t EXIT_NORMAL = 0;
 const uint32_t EXIT_BAD_ARGS = 1;
 const uint32_t EXIT_READ_FILE_FAILED = 2;
+const uint32_t EXIT_BAD_SOURCE_SIGNAL = 3;
 
 // Application constants
 const uint32_t SAMPLE_RATE = 44100;
 const uint32_t BITDEPTH = 16;
 const int32_t MIN_AMP = -32768;
 const int32_t MAX_AMP = 32767;
-const double PI = 3.14159265;
-
+const double PI = 3.1415926589793;
+const double TAU = 2*PI;
 // Wav format
 // Positions    Sample Value    Description
 // 1 - 4   "RIFF"  Marks the file as a riff file.
