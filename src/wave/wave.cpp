@@ -44,7 +44,6 @@ WaveReaderC::WaveReaderC(const std::string & a_filename) {
 
   // Read header and data
   std::vector<char> buffer(file_size);
-  std::cout << "DEBUG : header_size: " << sizeof(wav_header) << std::endl;
   wav_file.read(buffer.data(), file_size);
   std::memcpy(&header, buffer.data(), sizeof(wav_header));
   wav_data = std::vector<char>(buffer.begin() + sizeof(wav_header),
