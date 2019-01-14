@@ -3,7 +3,7 @@ CFLAGS=-Wall -O3 -g -std=c++11 -I./ -I../ -I../../
 SOURCES=main.cpp trainer.cpp
 OBJS=$(SOURCES:.cpp=.o)
 TARGET= StringSoundsTrainer
-LIBS= midi wave instrument
+LIBS= midi wave instrument fft
 LDLIBS=-L../../include $(addprefix -l, $(LIBS))
 HEADERS=trainer.h
 DEPS:=$(HEADERS:.h=.d)
@@ -20,7 +20,7 @@ $(TARGET): $(OBJS) $(LIBS)
 $(LIBS): 
 	$(MAKE) -C ../$@ $(MAKECMDGOALS)
 
-clean: libs
+clean: $(LIBS)
 	rm -rf *.o *.d $(TARGET) *.debug
 	
 .PHONY: clean libs
