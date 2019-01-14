@@ -24,18 +24,24 @@
 
 namespace instrument {
 namespace oscillator {
-const double min_decay_factor = 0.99998;
+
+const double MIN_AMPLITUDE_DECAY_RATE     = 0.99998;   // -3db in 0.1s
+const double MIN_FREQUENCY_DECAY_RATE     = 0.9999998;  // -3db in 100s
+const double MAX_AMPLITUDE_ATTACK_RATE    = 0.01;      // -3db in 1ms
+const double MAX_COUPLED_FREQUENCY_FACTOR   = 50.0;      //  50 * 440 > 20 kHz
+const double MAX_UNCOUPLED_FREQUENCY_FACTOR = 20000.0;   //  1.0 * 20 kHz
+const double SAMPLE_INCREMENT            = 1.0 / static_cast<double>(SAMPLE_RATE);
 
 class StringOscillatorC {
  public:
-  StringOscillatorC(const double phase, const double freq_factor,
-                    const double amp_factor, const double sus_factor,
-                    const double amp_decay, const double amp_attack,
-                    const double freq_decay, const double freq_attack);
-  void PrimeString(const double freq, const double velocity);
+  StringOscillatorC(double initial_phase, double frequency_factor,
+                    double amplitude_factor, double non_sustain_factor,
+                    double amplitude_decay, double amplitude_attack,
+                    double frequency_decay, bool is_coupled);
+  void PrimeString(const double frequency, const double velocity);
   double NextSample(const bool sustain);
   inline uint32_t GetSampleNumber() {
-    return sample_num_;
+    return sample_pos_;
   }
   std::string ToJson();
   std::unique_ptr<StringOscillatorC> TuneString(const uint8_t amount);
@@ -43,37 +49,37 @@ class StringOscillatorC {
 
  private:
   // Sinusoid's start definition.
-  double start_phase_;
+  double phase_factor_;
   double start_frequency_factor_;
   double start_amplitude_factor_;
 
   // Signal modification definition.
-  double sustain_factor_;
-  double amplitude_attack_delta_ = 0;
-  double amplitude_decay_rate_ = 0;
-  double frequency_attack_delta_ = 0;
-  double frequency_decay_rate_ = 0;
+  double non_sustain_factor_ = 1.0;
+  double amplitude_attack_factor_ = 0.0;
+  double amplitude_decay_factor_ = 0.0;
+  double frequency_decay_factor_ = 0.0;
+  bool base_frequency_coupled = true;
 
   // Signal State.
-  double max_amplitude_ = 0;
-  double max_frequency_ = 0;
-  double amplitude_state_ = 0;
-  double frequency_state_ = 0;
-  double base_frequency_ = 0;
-  uint32_t sample_num_ = 0;
-  bool in_amplitude_decay = false;
-  bool in_frequency_decay = false;
+  double normal_amplitude_decay_rate_ = 0.0;
+  double sutain_amplitude_decay_rate_ = 0.0;
+  double frequency_decay_rate_ = 0.0;
+  double amplitude_attack_delta_ = 0.0;
+  double max_amplitude_ = 0.0;
+  double amplitude_state_ = 0.0;
+  double frequency_state_ = 0.0;
+  double base_frequency_ = 0.0;
+  double sample_pos_ = 0.0;
+  bool in_amplitude_decay_ = false;
 
   // Create sample of a sin function for given parameters (frequency, amplitude,
   // sample rate, phase).
   //
-  // f(x) = A*sin( (2*x*pi*f/N) -p)
+  // f(x) = A*sin( ( f * x/N - p ) * 2*pi)
   //
   inline double SineWave() {
-    double theta = ((static_cast<double>(sample_num_)
-        / static_cast<double>(SAMPLE_RATE)) * 2.0 * PI * frequency_state_)
-        - start_phase_;
-    return amplitude_state_ * sin(theta);
+    double theta = sample_pos_ * frequency_state_  + phase_factor_;
+    return amplitude_state_ * sin(theta*TAU);
   }
 };
 }  // namespace oscillator
