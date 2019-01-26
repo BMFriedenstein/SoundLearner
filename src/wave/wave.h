@@ -20,6 +20,17 @@
 #include <string>
 #include "include/common.h"
 
+namespace wave {
+
+inline bool SampleDoesClip(const std::vector<int16_t>& sample) {
+  for (size_t s = 0; s < sample.size(); s++) {
+    if (std::abs(sample[s]) == MAX_AMP) {
+      return true;
+    }
+  }
+  return false;
+}
+
 class WaveReaderC {
  public:
   explicit WaveReaderC(const std::string & a_filename);
