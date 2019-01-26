@@ -1,5 +1,5 @@
 CXX=g++
-CFLAGS=-Wall -O3 -std=c++11 -I./ -I../ -I../../
+CFLAGS=-Wall -O3 -std=c++14 -I./ -I../ -I../../
 SOURCES=wave.cpp
 OBJ=$(SOURCES:.cpp=.o)
 DEPS=$(SOURCES:.cpp=.d)

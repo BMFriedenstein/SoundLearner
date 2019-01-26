@@ -1,5 +1,5 @@
 CXX=g++
-CFLAGS=-Wall -O0 -std=c++11 -I../ -I./ -I../../
+CFLAGS=-Wall -O0 -std=c++14 -I../ -I./ -I../../
 SOURCES=string_oscillator.cpp instrument_model.cpp
 OBJ=$(SOURCES:.cpp=.o)
 TARGET=libinstrument.a
