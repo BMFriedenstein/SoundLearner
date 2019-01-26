@@ -19,14 +19,14 @@
 #include <iostream>
 #include <fstream>
 
+namespace wave {
 WaveReaderC::WaveReaderC(const std::string & a_filename) {
   filename = a_filename;
 
   // Open file.
   std::ifstream wav_file(a_filename, std::ios::binary);
   if (!wav_file.is_open()) {
-    std::cout << "ERROR!!! Could not open wave file " << a_filename
-              << std::endl;
+    std::cout << "ERROR!!! Could not open wave file " << a_filename << std::endl;
     exit(EXIT_READ_FILE_FAILED);
   }
   wav_file.unsetf(std::ios::skipws);
@@ -37,8 +37,10 @@ WaveReaderC::WaveReaderC(const std::string & a_filename) {
   wav_file.seekg(0, std::ios::beg);
 
   if (file_size <= sizeof(wav_header)) {
-    std::cout << "ERROR!!! Could not open wave file " << a_filename
-              << " file size to small " << std::endl;
+    std::cout << "ERROR!!! Could not open wave file "
+              << a_filename
+              << " file size to small "
+              << std::endl;
     exit(EXIT_READ_FILE_FAILED);
   }
 
@@ -46,8 +48,7 @@ WaveReaderC::WaveReaderC(const std::string & a_filename) {
   std::vector<char> buffer(file_size);
   wav_file.read(buffer.data(), file_size);
   std::memcpy(&header, buffer.data(), sizeof(wav_header));
-  wav_data = std::vector<char>(buffer.begin() + sizeof(wav_header),
-                               buffer.end());
+  wav_data = std::vector<char>(buffer.begin() + sizeof(wav_header), buffer.end());
 }
 
 std::string WaveReaderC::HeaderToString() {
@@ -56,23 +57,15 @@ std::string WaveReaderC::HeaderToString() {
   ret_string += "\"chunk_size\": " + std::to_string(header.chunk_size) + ",\n";
   ret_string += "\"wave\": " + std::string(header.wave, 4) + ",\n";
   ret_string += "\"format\": " + std::string(header.format, 4) + ",\n";
-  ret_string += "\"sub_chunk_1_size\": "
-      + std::to_string(header.sub_chunk_1_size) + ",\n";
-  ret_string += "\"audio_format\": " + std::to_string(header.audio_format)
-      + ",\n";
-  ret_string += "\"num_of_channels\": " + std::to_string(header.num_of_channels)
-      + ",\n";
-  ret_string += "\"sample_rate\": " + std::to_string(header.sample_rate)
-      + ",\n";
-  ret_string += "\"bytes_per_second\": "
-      + std::to_string(header.bytes_per_second) + ",\n";
-  ret_string += "\"block_allign\": " + std::to_string(header.block_allign)
-      + ",\n";
+  ret_string += "\"sub_chunk_1_size\": " + std::to_string(header.sub_chunk_1_size) + ",\n";
+  ret_string += "\"audio_format\": " + std::to_string(header.audio_format) + ",\n";
+  ret_string += "\"num_of_channels\": " + std::to_string(header.num_of_channels) + ",\n";
+  ret_string += "\"sample_rate\": " + std::to_string(header.sample_rate) + ",\n";
+  ret_string += "\"bytes_per_second\": " + std::to_string(header.bytes_per_second) + ",\n";
+  ret_string += "\"block_allign\": " + std::to_string(header.block_allign) + ",\n";
   ret_string += "\"bit_depth\": " + std::to_string(header.bit_depth) + ",\n";
-  ret_string += "\"sub_chunk_2_id\": " + std::string(header.sub_chunk_2_id, 4)
-      + ",\n";
-  ret_string += "\"sub_chunk_2_size\": "
-      + std::to_string(header.sub_chunk_2_size) + ",\n";
+  ret_string += "\"sub_chunk_2_id\": " + std::string(header.sub_chunk_2_id, 4) + ",\n";
+  ret_string += "\"sub_chunk_2_size\": " + std::to_string(header.sub_chunk_2_size) + ",\n";
   ret_string += "\"data_size\": " + std::to_string(wav_data.size()) + "\n";
   ret_string += "}\n";
   return ret_string;
@@ -84,7 +77,8 @@ std::vector<int16_t> WaveReaderC::ToMono16BitWave() {
     // 16 bit.
     if (header.bit_depth == 16) {
       std::vector<int16_t> out_vector(static_cast<int>(wav_data.size()) / 2);
-      memcpy(reinterpret_cast<char*>(out_vector.data()), wav_data.data(),
+      memcpy(reinterpret_cast<char*>(out_vector.data()),
+             wav_data.data(),
              static_cast<int>(wav_data.size()));
       return out_vector;
     }
@@ -119,3 +113,4 @@ void MonoWaveWriterC::Write(const std::string& a_file_name) {
   fout.write(data.data(), data.size());
   fout.close();
 }
+}  // namespace wave

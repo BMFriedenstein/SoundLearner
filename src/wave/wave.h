@@ -56,5 +56,5 @@ class MonoWaveWriterC {
   wav_header header;
   std::vector<char> wav_data;
 };
-
+}  // namespace wave
 #endif   // SRC_WAVE_WAVE_H_
