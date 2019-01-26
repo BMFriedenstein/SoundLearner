@@ -13,30 +13,30 @@
  *      Author: brandon
  */
 
-#ifndef SRC_TRAINER_PROGRESS_LOGGER_H_
-#define SRC_TRAINER_PROGRESS_LOGGER_H_
+#ifndef SRC_LOGGER_LOGGER_H_
+#define SRC_LOGGER_LOGGER_H_
 
 #include <string>
 
-namespace logging{
+namespace logging {
 
-class ProgressLogC{
+class LogC {
  private:
   std::string filename_;
   bool cpy_to_console_;
  public:
-  ProgressLogC(std::string filename,bool to_console):
-    filename_(filename),
-    cpy_to_console_(to_console) { }
+  LogC(std::string filename, bool to_console)
+      : filename_(filename),
+        cpy_to_console_(to_console) {
+  }
   void Start();
   void WriteLine(const std::string& line);
 
-  inline void operator<<(const std::string& line){
+  inline void operator<<(const std::string& line) {
     WriteLine(line);
   }
-  static void WriteFile(const std::string filename,
-                        const std::string& content);
+  static void WriteFile(const std::string filename, const std::string& content);
 };
 }
 
-#endif  // SRC_TRAINER_PROGRESS_LOGGER_H_
+#endif  // SRC_LOGGER_LOGGER_H_

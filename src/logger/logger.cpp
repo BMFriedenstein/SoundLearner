@@ -13,8 +13,7 @@
  *      Author: brandon
  */
 
-
-#include "progress_logger.h"
+#include "logger.h"
 
 #include <cstdio>
 #include <fstream>
@@ -22,14 +21,14 @@
 #include <string>
 
 namespace logging {
-void ProgressLogC::Start(){
+void LogC::Start() {
   std::fstream file(filename_, std::fstream::out);
   file << "";
   file.close();
 }
 
-void ProgressLogC::WriteLine(const std::string& line) {
-  if(cpy_to_console_){
+void LogC::WriteLine(const std::string& line) {
+  if (cpy_to_console_) {
     std::cout << line << std::endl;
   }
   std::ofstream out_stream(filename_, std::ios::app);
@@ -37,11 +36,10 @@ void ProgressLogC::WriteLine(const std::string& line) {
   out_stream.close();
 }
 
-void ProgressLogC::WriteFile(const std::string filename,
-                             const std::string& content) {
+void LogC::WriteFile(const std::string filename, const std::string& content) {
   std::cout << filename << std::endl;
   std::fstream file(filename, std::fstream::out);
-  file << content+ "\n";
+  file << content + "\n";
   file.close();
 }
 }
