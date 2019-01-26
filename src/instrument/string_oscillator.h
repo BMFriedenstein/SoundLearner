@@ -25,28 +25,39 @@
 namespace instrument {
 namespace oscillator {
 
+const double MIN_AMPLITUDE_CUTOFF     = 0.0001;
 const double MIN_AMPLITUDE_DECAY_RATE     = 0.99998;   // -3db in 0.1s
 const double MIN_FREQUENCY_DECAY_RATE     = 0.9999998;  // -3db in 100s
 const double MAX_AMPLITUDE_ATTACK_RATE    = 0.0001;
 const double MAX_COUPLED_FREQUENCY_FACTOR   = 50.0;      //  50 * 440 > 20 kHz
-const double MAX_UNCOUPLED_FREQUENCY_FACTOR = 20000.0;   //  1.0 * 20 kHz
+const double MAX_UNCOUPLED_FREQUENCY_FACTOR = 18500.0;   //  1.0 * 18.5 kHz
 const double SAMPLE_INCREMENT            = 1.0 / static_cast<double>(SAMPLE_RATE);
+
 
 class StringOscillatorC {
  public:
-  StringOscillatorC(double initial_phase, double frequency_factor,
-                    double amplitude_factor, double non_sustain_factor,
-                    double amplitude_decay, double amplitude_attack,
-                    double frequency_decay, bool is_coupled);
+  StringOscillatorC(double initial_phase,
+                    double frequency_factor,
+                    double amplitude_factor,
+                    double non_sustain_factor,
+                    double amplitude_decay,
+                    double amplitude_attack,
+                    double frequency_decay,
+                    bool is_coupled);
   void PrimeString(const double frequency, const double velocity);
   double NextSample(const bool sustain);
   inline uint32_t GetSampleNumber() {
     return sample_pos_;
   }
+  void AmendGain(const double factor);
+  std::string ToCsv();
   std::string ToJson();
   std::unique_ptr<StringOscillatorC> TuneString(const uint8_t amount);
-  static std::unique_ptr<StringOscillatorC> CreateUntunedString();
+  static std::unique_ptr<StringOscillatorC> CreateUntunedString(const bool is_coupled=true);
 
+  double GetFreqFactor() const { return start_frequency_factor_; }
+  double GetAmpFactor() const { return start_amplitude_factor_; }
+  double IsCoupled() const { return base_frequency_coupled_; }
  private:
   // Sinusoid's start definition.
   double phase_factor_;
@@ -58,7 +69,7 @@ class StringOscillatorC {
   double amplitude_attack_factor_ = 0.0;
   double amplitude_decay_factor_ = 0.0;
   double frequency_decay_factor_ = 0.0;
-  bool base_frequency_coupled = true;
+  bool base_frequency_coupled_ = true;
 
   // Signal State.
   double normal_amplitude_decay_rate_ = 0.0;
@@ -78,8 +89,8 @@ class StringOscillatorC {
   // f(x) = A*sin( ( f * x/N - p ) * 2*pi)
   //
   inline double SineWave() {
-    double theta = sample_pos_ * frequency_state_  + phase_factor_;
-    return amplitude_state_ * sin(theta*TAU);
+    double theta = sample_pos_ * frequency_state_ + phase_factor_;
+    return amplitude_state_ * sin(theta * TAU);
   }
 };
 }  // namespace oscillator

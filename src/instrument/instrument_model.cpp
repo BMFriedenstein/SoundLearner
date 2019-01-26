@@ -23,13 +23,26 @@
 #include <utility>
 
 namespace instrument {
-InstrumentModelC::InstrumentModelC(const uint16_t num_strings,
-                                   const std::string& instrument_name) {
+InstrumentModelC::InstrumentModelC(uint16_t num_strings, std::string instrument_name) {
   error_score_ = std::numeric_limits<double>::max();
   name_ = instrument_name;
   sound_strings_.reserve(num_strings);
   for (uint16_t i = 0; i < num_strings; i++) {
-    AddUntunedString();
+    AddUntunedString(false);
+  }
+}
+
+InstrumentModelC::InstrumentModelC(uint16_t num_uncoupled_strings,
+                                   uint16_t num_coupled_strings,
+                                   std::string instrument_name) {
+  error_score_ = std::numeric_limits<double>::max();
+  name_ = instrument_name;
+  sound_strings_.reserve(num_uncoupled_strings + num_coupled_strings);
+  for (uint16_t i = 0; i < num_uncoupled_strings; i++) {
+    AddUntunedString(false);
+  }
+  for (uint16_t i = 0; i < num_coupled_strings; i++) {
+    AddUntunedString(true);
   }
 }
 
@@ -38,10 +51,9 @@ InstrumentModelC::InstrumentModelC(const uint16_t num_strings,
  * @parameters: reference to a a_tuned_string (StringOscillatorC),
  * @returns: none
  */
-void InstrumentModelC::AddTunedString(
-    const oscillator::StringOscillatorC a_tuned_string) {
-  std::unique_ptr<oscillator::StringOscillatorC> tuned_string(
-      new oscillator::StringOscillatorC(a_tuned_string));
+void InstrumentModelC::AddTunedString(const oscillator::StringOscillatorC a_tuned_string) {
+  auto tuned_string = std::make_unique<oscillator::StringOscillatorC>(
+                         oscillator::StringOscillatorC(a_tuned_string));
   sound_strings_.push_back(std::move(tuned_string));
 }
 
@@ -50,9 +62,8 @@ void InstrumentModelC::AddTunedString(
  * @parameters: none,
  * @returns: none
  */
-void InstrumentModelC::AddUntunedString() {
-  sound_strings_.push_back(
-      std::move(oscillator::StringOscillatorC::CreateUntunedString()));
+void InstrumentModelC::AddUntunedString(const bool is_uncoupled) {
+  sound_strings_.push_back(std::move(oscillator::StringOscillatorC::CreateUntunedString(is_uncoupled)));
 }
 
 /*
@@ -60,8 +71,14 @@ void InstrumentModelC::AddUntunedString() {
  * @parameters: none,
  * @returns: JSON string
  */
-std::string InstrumentModelC::ToJson() {
+std::string InstrumentModelC::ToJson(SortType sort_type) {
   std::string return_json = "{\n";
+  if (sort_type == frequency) {
+    SortStringsByFreq();
+  }
+  else if (sort_type == amplitude) {
+    SortStringsByAmplitude();
+  }
   return_json += "\"name\": \"" + name_ + "\",\n";
   return_json += "\"strings\": [\n";
   for (size_t j = 0; j < sound_strings_.size(); j++) {
@@ -74,6 +91,24 @@ std::string InstrumentModelC::ToJson() {
   return return_json;
 }
 
+std::string InstrumentModelC::ToCsv(SortType sort_type) {
+  std::string return_csv = "";
+  if (sort_type == frequency) {
+    SortStringsByFreq();
+  }
+  else if (sort_type == amplitude) {
+    SortStringsByAmplitude();
+  }
+  for (size_t j = 0; j < sound_strings_.size(); j++) {
+    return_csv += sound_strings_[j]->ToCsv();
+    if (j + 1 != sound_strings_.size()) {
+      return_csv += ",";
+    }
+  }
+
+  return return_csv;
+}
+
 /*
  * Generates a array of double sample values representing
  * the sound of the note played.
@@ -81,15 +116,15 @@ std::string InstrumentModelC::ToJson() {
  *          number of sample to generate, array of sustain values.
  * @returns: vector of doubles
  */
-std::vector<double> InstrumentModelC::GenerateSignal(
-    const double velocity, const double frequency,
-    const uint32_t num_of_samples, std::vector<bool>& sustain) {
+std::vector<double> InstrumentModelC::GenerateSignal(const double velocity,
+                                                     const double frequency,
+                                                     const uint32_t num_of_samples,
+                                                     std::vector<bool>& sustain) {
   std::vector<double> signal(num_of_samples);
 
   // Check that we have a sustain value for each sample.
   if (sustain.size() != num_of_samples) {
-    std::cout << "Warning!!! Sustain array not equal to sample length"
-              << std::endl;
+    std::cout << "Warning!!! Sustain array not equal to sample length" << std::endl;
     sustain.resize(num_of_samples);
   }
 
@@ -118,9 +153,10 @@ std::vector<double> InstrumentModelC::GenerateSignal(
  *          number of sample to generate, array of sustain values.
  * @returns: vector of integers
  */
-std::vector<int16_t> InstrumentModelC::GenerateIntSignal(
-    const double velocity, const double frequency,
-    const uint32_t num_of_samples, std::vector<bool>& sustain) {
+std::vector<int16_t> InstrumentModelC::GenerateIntSignal(const double velocity,
+                                                         const double frequency,
+                                                         const uint32_t num_of_samples,
+                                                         std::vector<bool>& sustain) {
   std::vector<int16_t> signal(num_of_samples);
 
   // Check that we have a sustain value for each sample.
@@ -145,12 +181,15 @@ std::vector<int16_t> InstrumentModelC::GenerateIntSignal(
     // Convert to int32.
     if (sample_val > MAX_AMP) {
       sample_val = MAX_AMP;
-    } else if (sample_val < MIN_AMP) {
+    }
+    else if (sample_val < MIN_AMP) {
       sample_val = MIN_AMP;
     }
+
     if (sample_val < 0) {
       signal[i] = static_cast<int>(sample_val - 0.5);
-    } else {
+    }
+    else {
       signal[i] = static_cast<int>(sample_val + 0.5);
     }
   }
@@ -158,35 +197,37 @@ std::vector<int16_t> InstrumentModelC::GenerateIntSignal(
   return signal;
 }
 
+void InstrumentModelC::AmendGain(const double factor){
+  for (size_t i = 0; i < sound_strings_.size(); i++) {
+    sound_strings_[i]->AmendGain(factor);
+  }
+}
+
 /*
  * Create a new instrument slightly mutated from this instrument model.
  * @parameters: amount(mutation amount).
  * @returns: unique pointer to an instrument
  */
-std::unique_ptr<InstrumentModelC> InstrumentModelC::TuneInstrument(
-    const uint8_t amount) {
-  std::unique_ptr<InstrumentModelC> mutant_instrument;
+std::unique_ptr<InstrumentModelC> InstrumentModelC::TuneInstrument(const uint8_t amount) {
   std::random_device random_device;                   // obtain a random number from hardware.
   std::mt19937 eng(random_device());                  // seed the generator.
   std::uniform_real_distribution<> real_distr(0, 1);  // define the range.
-  bool create_new = real_distr(eng) < 0.1;
 
-  if (create_new) {
-    mutant_instrument = std::unique_ptr<InstrumentModelC>(
-        new InstrumentModelC(sound_strings_.size(),
-                             "new_" + std::to_string(time(nullptr))));
-  } else {
-    mutant_instrument = std::unique_ptr<InstrumentModelC>(
-        new InstrumentModelC(0, "new_" + std::to_string(time(nullptr))));
+  std::string new_name = "new_" + std::to_string(time(nullptr));
+  if (real_distr(eng) < 0.1) {
+    return std::make_unique<InstrumentModelC>(InstrumentModelC(sound_strings_.size(), new_name));
+  }
+  else {
+    auto mutant_instrument = std::make_unique<InstrumentModelC>(InstrumentModelC(0, new_name));
     for (size_t j = 0; j < sound_strings_.size(); j++) {
-      bool keep_tune = real_distr(eng) < 0.1;
-      if (!keep_tune) {
-        mutant_instrument->AddTunedString(*sound_strings_[j]->TuneString(amount));
-      } else {
-        mutant_instrument->AddTunedString(*sound_strings_[j]);
+      if (real_distr(eng) < 0.95) {
+        mutant_instrument->AddTunedString(std::move(*sound_strings_[j]->TuneString(amount).release()));
+      }
+      else {
+        mutant_instrument->AddTunedString(std::move(*sound_strings_[j]));
       }
     }
+    return mutant_instrument;
   }
-  return mutant_instrument;
 }
 }  // namespace instrument
