@@ -18,22 +18,24 @@
 #include <string>
 #include <vector>
 
+#include "../genetic_trainer/trainer.h"
 #include "include/common.h"
 #include "instrument/string_oscillator.h"
 #include "instrument/instrument_model.h"
-#include "trainer/trainer.h"
 #include "wave/wave.h"
 
-
 static void AppUsage() {
-  std::cerr << "Usage: \n" << "-n --size <100 instruments> \n"
+  std::cerr << "Usage: \n"
+            << "-n --size <100 instruments> \n"
             << "-N --num-gen <train for 1 generation> \n"
-            << "-a --target <train.wav> \n" << "-m --midi <train.mid>\n"
+            << "-a --target <train.wav> \n"
+            << "-m --midi <train.mid>\n"
             << "-s --instrument-size <100>\n"
             << "-M --max-instrument-size <1000>\n"
             << "-r --instrument-growth-rate <0> (generations per increase)\n"
             << "-m --midi <train.mid>\n"
-            << "-p --progression <> (save progresion)" << std::endl;
+            << "-p --progression <> (save progresion)"
+            << std::endl;
 }
 
 int main(int argc, char** argv) {
@@ -54,33 +56,51 @@ int main(int argc, char** argv) {
       AppUsage();
       return EXIT_NORMAL;
     }
-    if (((arg == "-n") || (arg == "--size") || (arg == "-N")
-        || (arg == "--num-gen") || (arg == "-a") || (arg == "--target")
-        || (arg == "-m") || (arg == "--midi") || (arg == "-r")
-        || (arg == "--instrument-growth-rate") || (arg == "-s")
-        || (arg == "--instrument-size") || (arg == "-M")
-        || (arg == "--max-instrument-size") || (arg == "-p")
-        || (arg == "--progression")) && (i + 1 < argc)) {
+    if (((arg == "-n") ||
+         (arg == "--size") ||
+         (arg == "-N") ||
+         (arg == "--num-gen") ||
+         (arg == "-a") ||
+         (arg == "--target") ||
+         (arg == "-m") ||
+         (arg == "--midi") ||
+         (arg == "-r") ||
+         (arg == "--instrument-growth-rate") ||
+         (arg == "-s") ||
+         (arg == "--instrument-size") ||
+         (arg == "-M") ||
+         (arg == "--max-instrument-size") ||
+         (arg == "-p") ||
+         (arg == "--progression")) &&
+        (i + 1 < argc)) {
       std::string arg2 = argv[++i];
       // Todo check if argument is numeric.
       if ((arg == "-n") || (arg == "--size")) {
         class_size = (uint16_t) std::stol(arg2);
-      } else if ((arg == "-N") || (arg == "--num-gen")) {
+      }
+      else if ((arg == "-N") || (arg == "--num-gen")) {
         training_generations = (uint16_t) std::stoul(arg2);
-      } else if ((arg == "-a") || (arg == "--target")) {
+      }
+      else if ((arg == "-a") || (arg == "--target")) {
         audio_file = arg2;
-      } else if ((arg == "-m") || (arg == "--midi")) {
+      }
+      else if ((arg == "-m") || (arg == "--midi")) {
         midi_file = arg2;
-      } else if ((arg == "-r") || (arg == "--instrument-growth-rate")) {
+      }
+      else if ((arg == "-r") || (arg == "--instrument-growth-rate")) {
         instrument_growth = (uint16_t) std::stol(arg2);
-      } else if ((arg == "-s") || (arg == "--instrument-size")) {
+      }
+      else if ((arg == "-s") || (arg == "--instrument-size")) {
         start_instrument_size = (uint16_t) std::stol(arg2);
-      } else if ((arg == "-M") || (arg == "--max-instrument-size")) {
+      }
+      else if ((arg == "-M") || (arg == "--max-instrument-size")) {
         max_instrument_size = (uint16_t) std::stol(arg2);
-      } else if ((arg == "-p") || (arg == "--progression")) {
+      }
+      else if ((arg == "-p") || (arg == "--progression")) {
         progression_output = arg2;
       }
-    } else {
+    }
+    else {
       std::cerr << "--destination option requires one argument." << std::endl;
       return EXIT_BAD_ARGS;
     }
@@ -98,30 +118,32 @@ int main(int argc, char** argv) {
 
   // Some debug.
   std::cout << "Starting trainer... " << std::endl;
-  std::cout << "\tTraining generations: " << training_generations
-            << " generations" << std::endl;
+  std::cout << "\tTraining generations: " << training_generations << " generations" << std::endl;
   std::cout << "\tSource audio: " << audio_file << std::endl;
   std::cout << "\tSource MIDI: " << midi_file << std::endl;
   std::cout << "\tClass size: " << class_size << std::endl;
-  std::cout << "\tStarting instrument size: " << start_instrument_size
+  std::cout << "\tStarting instrument size: " << start_instrument_size << std::endl;
+  std::cout << "\tMaximum instrument size: " << max_instrument_size << std::endl;
+  std::cout << "\tInstrument growth rate: "
+            << instrument_growth
+            << " generations per increase"
             << std::endl;
-  std::cout << "\tMaximum instrument size: " << max_instrument_size
-            << std::endl;
-  std::cout << "\tInstrument growth rate: " << instrument_growth
-            << " generations per increase" << std::endl;
   if (!progression_output.empty()) {
     std::cout << "\tProgression saved to: " << progression_output << std::endl;
   }
 
   // Read source .wav file into memory.
-  WaveReaderC wav_rdr = WaveReaderC(audio_file);
+  wave::WaveReaderC wav_rdr = wave::WaveReaderC(audio_file);
   std::vector<int16_t> source_signal = wav_rdr.ToMono16BitWave();
   std::cout << "Reading source audio file... " << std::endl;
 
   // TODO(Brandon): Read MIDI file into memory.
   // Create Trainer class using input parameters.
   trainer::GeneticInstumentTrainerC trainer = { start_instrument_size,
-      class_size, source_signal, progression_output, instrument_growth };
+                                                class_size,
+                                                source_signal,
+                                                progression_output,
+                                                instrument_growth };
   std::cout << "Starting Training... " << std::endl;
   trainer.Start(training_generations);
 

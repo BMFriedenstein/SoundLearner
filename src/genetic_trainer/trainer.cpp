@@ -12,7 +12,7 @@
  *      Author: Brandon
  */
 
-#include "trainer/trainer.h"
+#include "trainer.h"
 
 #include <cmath>
 #include <cstdio>
@@ -22,9 +22,8 @@
 #include <iostream>
 #include <limits>
 #include <utility>
-// #include <thread>
 
-#include "progress_logger.h"
+#include "logger/logger.h"
 #include "wave/wave.h"
 #include "fft/fft.h"
 
@@ -39,27 +38,25 @@ namespace trainer {
 InstumentTrainerC::InstumentTrainerC(uint16_t num_starting_occilators,
                                      uint16_t class_size,
                                      std::vector<int16_t>& src_audio,
-                                     std::string& progress_location) :
-    progress_location_(progress_location),
-    src_audio_(src_audio),
-    logger(progress_location + "/progress.csv", true) {
+                                     std::string& progress_location)
+    : progress_location_(progress_location),
+      src_audio_(src_audio),
+      logger(progress_location + "/progress.csv", true) {
 
   for (uint16_t i = 0; i < class_size; i++) {
-    std::string name_of_instrument = "instrument_" + std::to_string(i);
     std::unique_ptr<instrument::InstrumentModelC> new_instrument(
-        new instrument::InstrumentModelC(num_starting_occilators,
-                                         name_of_instrument));
+        new instrument::InstrumentModelC(num_starting_occilators, "instrument_" + std::to_string(i)));
     trainees_.push_back(std::move(new_instrument));
   }
 
 }
 
-GeneticInstumentTrainerC::GeneticInstumentTrainerC(
-    uint16_t num_starting_occilators, uint16_t class_size,
-    std::vector<int16_t>& src_audio, std::string& progress_location,
-    uint32_t gens_per_addition)
-    : trainer::InstumentTrainerC(num_starting_occilators, class_size, src_audio,
-                                 progress_location),
+GeneticInstumentTrainerC::GeneticInstumentTrainerC(uint16_t num_starting_occilators,
+                                                   uint16_t class_size,
+                                                   std::vector<int16_t>& src_audio,
+                                                   std::string& progress_location,
+                                                   uint32_t gens_per_addition)
+    : trainer::InstumentTrainerC(num_starting_occilators, class_size, src_audio, progress_location),
       gens_per_addition_(gens_per_addition) {
   std::vector<bool> sustain = std::vector<bool>(src_audio.size(), true);
 }
@@ -68,7 +65,10 @@ GeneticInstumentTrainerC::GeneticInstumentTrainerC(
  * Calculate the average mean error for the generated signals of each trainee instrument.
  * in class
  */
-double InstumentTrainerC::GetError(const std::vector<int16_t>& tgt_audio) {
+double InstumentTrainerC::GetError(const std::vector<int16_t>& tgt_audio,
+                                   double& corr_score,
+                                   double& mae_score,
+                                   double& diff_score) {
 
   // Check the src audio is the right size.
   if (tgt_audio.size() != src_audio_.size()) {
@@ -82,26 +82,25 @@ double InstumentTrainerC::GetError(const std::vector<int16_t>& tgt_audio) {
     tgt_energy += std::abs(tgt_audio[s]);
   }
   tgt_energy = tgt_energy / src_audio_.size();
-  double ave_energy_diff = std::abs(tgt_energy - src_energy_)
-      / static_cast<double>(MAX_AMP);
+  diff_score = std::abs(tgt_energy - src_energy_) / static_cast<double>(MAX_AMP);
   if (src_energy_ / tgt_energy > 5) {
+    diff_score = 1.0;
+    mae_score = 1.0;
+    corr_score = 1.0;
     return 1.0;
   }
 
   // Get The maen absolute error
-  double mae = MeanAbsoluteError(tgt_audio, src_energy_ / tgt_energy);
+  mae_score = MeanAbsoluteError(tgt_audio, src_energy_ / tgt_energy);
 
   // Determine cross correlation
-  double cross_corr = CrossCorrelation(tgt_audio);
-
-  return 0.333 * cross_corr + 0.333 * ave_energy_diff + 0.333 * mae;
+  corr_score = CrossCorrelation(tgt_audio);
+  return corr_score / 2 + diff_score / 2 + mae_score / 400;
 }
 
-double InstumentTrainerC::CrossCorrelation(
-    const std::vector<int16_t>& tgt_audio) {
+double InstumentTrainerC::CrossCorrelation(const std::vector<int16_t>& tgt_audio) {
   // Get next power of 2
-  auto signal_length = static_cast<uint32_t>(pow(
-      2, ceil(log(src_audio_.size() * 2) / log(2))));
+  auto signal_length = static_cast<uint32_t>(pow(2, ceil(log(src_audio_.size() * 2) / log(2))));
 
   // Pad signals with { 0.0 0.0j }
   std::vector<std::complex<double>> cmplx_src(signal_length, { 0.0, 0.0 });
@@ -109,12 +108,12 @@ double InstumentTrainerC::CrossCorrelation(
   std::vector<std::complex<double>> cmplx_corr(signal_length, { 0.0, 0.0 });
   for (size_t s = 0; s < src_audio_.size(); s++) {
     cmplx_src[s] = src_audio_[s];
-    cmplx_tgt[s] = tgt_audio[s];
+    cmplx_tgt[src_audio_.size()-(1+s)] = tgt_audio[s];
   }
 
   Fft::convolve(cmplx_src, cmplx_tgt, cmplx_corr);
 
-  return src_audio_.size() / (std::abs(cmplx_corr[src_audio_.size()]));
+  return MAX_AMP * src_audio_.size() / (std::abs(cmplx_corr[src_audio_.size()]));
 }
 
 double InstumentTrainerC::MeanAbsoluteError(
@@ -140,6 +139,7 @@ void GeneticInstumentTrainerC::DetermineFitness() {
   double min_error = std::numeric_limits<double>::max();
   std::vector<int16_t> best_instrument_sample(src_audio_.size());
   std::string best_instrument_json("");
+  uint32_t best_index = 0;
 
   // TODO(Brandon): Replace with midi.
   sustain = std::vector<bool>(src_audio_.size(), true);
@@ -149,9 +149,14 @@ void GeneticInstumentTrainerC::DetermineFitness() {
   for (size_t i = 0; i < trainees_.size(); i++) {
     // Only re-calculate score if we have not already done so.
     if (!trainees_[i]->score_is_cached_) {
-      temp_sample = trainees_[i]->GenerateIntSignal(velocity, base_frequency,
-                                                    src_audio_.size(), sustain);
-      trainees_[i]->error_score_ = GetError(temp_sample);
+      temp_sample = trainees_[i]->GenerateIntSignal(velocity,
+                                                    base_frequency,
+                                                    src_audio_.size(),
+                                                    sustain);
+      trainees_[i]->error_score_ = GetError(temp_sample,
+                                            trainees_[i]->corr_score_,
+                                            trainees_[i]->mae_score_,
+                                            trainees_[i]->diff_score_);
       trainees_[i]->score_is_cached_ = true;
     }
 
@@ -161,9 +166,10 @@ void GeneticInstumentTrainerC::DetermineFitness() {
 
       if (trainees_[i]->error_score_ < min_error) {
         min_error = trainees_[i]->error_score_;
+        best_index = i;
 
         // Determine best score and if it is a new best score
-        if (i > 0) {
+        if (best_index > 0) {
           have_new_best = true;
           best_instrument_json = trainees_[i]->ToJson();
           best_instrument_sample = temp_sample;
@@ -175,15 +181,18 @@ void GeneticInstumentTrainerC::DetermineFitness() {
 
   // Log progression and write out best sample if it is not new.
   if (!progress_location_.empty()) {
-    logger
-        << std::to_string(gen_count_) + ", " + std::to_string(min_error) + ", "
-            + std::to_string(ave_error);
+    logger << std::to_string(gen_count_) + ", " +
+              std::to_string(min_error) + ", " +
+              std::to_string(trainees_[best_index]->corr_score_) + ", " +
+              std::to_string(trainees_[best_index]->mae_score_) + ", " +
+              std::to_string(trainees_[best_index]->diff_score_) + ", " +
+              std::to_string(ave_error);
 
     if (have_new_best) {
-      logging::ProgressLogC::WriteFile( progress_location_+
+      logging::LogC::WriteFile( progress_location_+
                                         "/Gen_" + std::to_string(gen_count_) +
                                         ".json", best_instrument_json);
-      MonoWaveWriterC wave_writer(best_instrument_sample);
+      wave::MonoWaveWriterC wave_writer(best_instrument_sample);
       wave_writer.Write(
           progress_location_ + "/Gen_" + std::to_string(gen_count_) + ".wav");
     }
@@ -201,7 +210,7 @@ void GeneticInstumentTrainerC::GeneticAlgorithm() {
   for (size_t i = 0; i < trainees_.size(); i++) {
     size_t keep_index = i % (keep_amount);
     if (i >= keep_amount) {
-      trainees_[i].reset(trainees_[keep_index]->TuneInstrument(1).release());
+      trainees_[i].reset(trainees_[keep_index]->TuneInstrument(40).release());
     }
   }
 }
@@ -220,14 +229,13 @@ void GeneticInstumentTrainerC::Start(uint16_t a_num_of_generations) {
     exit(EXIT_BAD_SOURCE_SIGNAL);
   }
   std::cout << "src average energy: " << src_energy_ << std::endl;
-  logger << "Generation, Top instrument error,Average error ";
+  logger << "Generation, Error, Correlation, MAE, Average difference, Average error";
   for (gen_count_ = 0; gen_count_ < num_generations_; gen_count_++) {
     DetermineFitness();
     GeneticAlgorithm();
 
     // Add additional oscillator.
-    if (gen_count_ != 0 && gens_per_addition_ > 0
-        && gen_count_ % gens_per_addition_ == 0) {
+    if (gen_count_ != 0 && gens_per_addition_ > 0 && gen_count_ % gens_per_addition_ == 0) {
       for (size_t i = 0; i < trainees_.size(); i++) {
         trainees_[i]->score_is_cached_ = false;
         trainees_[i]->error_score_ = std::numeric_limits<double>::max();

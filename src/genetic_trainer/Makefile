@@ -1,9 +1,9 @@
 CXX=g++
-CFLAGS=-Wall -O3 -g -std=c++11 -I./ -I../ -I../../
-SOURCES=main.cpp trainer.cpp progress_logger.cpp
+CFLAGS=-Wall -O3 -g -std=c++14 -I./ -I../ -I../../
+SOURCES=main.cpp trainer.cpp 
 OBJS=$(SOURCES:.cpp=.o)
 TARGET= StringSoundsTrainer
-LIBS= midi wave instrument fft
+LIBS= midi wave instrument fft logger
 LDLIBS=-L../../include $(addprefix -l, $(LIBS))
 HEADERS=trainer.h
 DEPS:=$(HEADERS:.h=.d)
