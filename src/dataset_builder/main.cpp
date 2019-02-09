@@ -29,7 +29,7 @@ static void AppUsage() {
   std::cerr << "Usage: \n"
             << "-h --help\n"
             << "-n --dataset-size <number of samples to generate \n"
-            << "-c --coupled-oscilators<0> <>\n"
+            << "-c --uncoupled-oscilators<0> <>\n"
             << "-s --instrument-size <50>\n"
             << "-t --sample-time <5>\n"
             << "-d --data_save <'data'> (save data)"
@@ -51,27 +51,25 @@ int main(int argc, char** argv) {
       AppUsage();
       return EXIT_NORMAL;
     }
-    if (((arg == "-n") ||
-        (arg == "--dataset-size") ||
-        (arg == "-m") ||
-        (arg == "--midi") ||
-        (arg == "-s") ||
-        (arg == "--instrument-size") ||
-        (arg == "-d") ||
-        (arg == "--data_save")) &&
+    if (((arg == "-n") || (arg == "--dataset-size") ||
+        (arg == "-m") || (arg == "--midi") ||
+        (arg == "-s") || (arg == "--instrument-size") ||
+        (arg == "-d") || (arg == "--data_save") ||
+        (arg == "-c") || (arg == "--uncoupled-oscilators")) &&
         (i + 1 < argc)) {
       std::string arg2 = argv[++i];
+      std::cout << arg << " " << arg2 << std::endl;
       if ((arg == "-n") || (arg == "--dataset_size")) {
         dataset_size = (uint16_t) std::stoul(arg2);
       }
-      else if ((arg == "-c") || (arg == "--coupled-oscilators")) {
-        uncoupled_oscilators = (uint16_t) std::stoul(arg2);
+      else if ((arg == "-c") || (arg == "--uncoupled-oscilators")) {
+        uncoupled_oscilators = (uint16_t)std::stoul(arg2);
       }
       else if ((arg == "-s") || (arg == "--instrument-size")) {
-        coupled_oscilators = (uint16_t) std::stoul(arg2);
+        coupled_oscilators = (uint16_t)std::stoul(arg2);
       }
       else if ((arg == "-t") || (arg == "--sample-time")) {
-        sample_time = (uint32_t) std::stoul(arg2);
+        sample_time = (uint32_t)std::stoul(arg2);
       }
       else if ((arg == "-d") || (arg == "--data_save")) {
         data_output = arg2;
@@ -89,9 +87,10 @@ int main(int argc, char** argv) {
   uint32_t num_samples = SAMPLE_RATE * sample_time;
   std::vector<bool> sustain(num_samples, true);
 
-  std::cout << "Building dataset...\n";
+  std::cout << "Building dataset...";
+  std::cout << uncoupled_oscilators << std::endl;
   for (size_t i = 0; i < dataset_size;) {
-    std::array<double, 2> notes_played { 8000 * real_distr(eng), 8000 * real_distr(eng) };
+    std::array<double, 2> notes_played { 2000 * real_distr(eng), 2000 * real_distr(eng) };
     double velocity { real_distr(eng) };
 
     // Generate random sustain signal
