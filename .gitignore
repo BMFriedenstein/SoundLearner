@@ -46,3 +46,5 @@ src/player/StringSoundsPlayer.debug
 /src/dataset_builder/DatatsetBuilder.debug
 /src/genetic_trainer/StringSoundsTrainer
 /src/genetic_trainer/StringSoundsTrainer.debug
+/.pydevproject
+/.settings/org.eclipse.core.resources.prefs
