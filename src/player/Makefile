@@ -1,5 +1,5 @@
-CXX=g++
-CFLAGS=-Wall -O3 -g -std=c++14 -I./ -I../ -I../../
+CXX=icc
+CFLAGS=-Wall -02 -xHASWELL -ansi-alias -g -std=c++14 -I./ -I../ -I../../
 SOURCES=main.cpp
 OBJ=$(SOURCES:.cpp=.o)
 TARGET = StringSoundsPlayer

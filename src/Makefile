@@ -1,5 +1,4 @@
-SUBDIRS := $(wildcard */.)
-
+SUBDIRS := instrument fft midi genetic_trainer player dataset_builder wave
 all: $(SUBDIRS)
 clean: $(SUBDIRS)
 

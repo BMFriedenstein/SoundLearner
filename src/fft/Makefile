@@ -1,5 +1,5 @@
-CXX=g++
-CFLAGS=-Wall -O3 -std=c++14 -I./ -I../ -I../../
+CXX=icc
+CFLAGS=-Wall -02 -xHASWELL -ansi-alias -std=c++14 -I./ -I../ -I../../
 SOURCES=fft.cpp
 OBJ=$(SOURCES:.cpp=.o)
 DEPS=$(SOURCES:.cpp=.d)
