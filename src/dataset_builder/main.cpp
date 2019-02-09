@@ -143,13 +143,15 @@ int main(int argc, char** argv) {
         sustain_str += ",";
       }
     }
-    std::string instrument_data = rand_instrument.ToCsv();
-    instrument_data += "\n"
-                       + std::to_string(notes_played[0])
-                       + ","
-                       + std::to_string(notes_played[1]);
-    instrument_data += "\n" + std::to_string(redrisibuted_velocity);
-    instrument_data += "\n" + sustain_str;
+
+    // Write out meta and data files
+    std::string instrument_data = rand_instrument.ToCsv(instrument::frequency);
+    std::string instrument_meta = std::to_string(notes_played[0]) + "," +
+                                  std::to_string(notes_played[1])  + "\n";
+    instrument_meta += std::to_string(redrisibuted_velocity) + "\n";
+    instrument_meta += sustain_str;
+    logging::LogC::WriteFile(data_output + "/sample_" + std::to_string(i) + ".meta",
+                             instrument_meta);
     logging::LogC::WriteFile(data_output + "/sample_" + std::to_string(i) + ".data",
                              instrument_data);
 
