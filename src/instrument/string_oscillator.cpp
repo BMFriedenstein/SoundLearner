@@ -23,7 +23,8 @@ StringOscillatorC::StringOscillatorC(double initial_phase,
                                      double non_sustain_factor,
                                      double amplitude_decay,
                                      double amplitude_attack,
-                                     double frequency_decay, bool is_coupled) {
+                                     double frequency_decay,
+                                     bool is_coupled) {
   // Parameter limits.
   if (amplitude_decay > 1.0) { amplitude_decay = 1.0; }
   if (amplitude_decay < 2 * MIN_AMPLITUDE_CUTOFF) {
@@ -154,9 +155,9 @@ void StringOscillatorC::AmendGain(const double factor) {
 
 std::string StringOscillatorC::ToCsv(){
   std::string csv_str = "";
-  csv_str +=  std::to_string(phase_factor_) + "," +
+  csv_str +=  std::to_string(start_amplitude_factor_) + "," +
               std::to_string(start_frequency_factor_) + "," +
-              std::to_string(start_amplitude_factor_) + "," +
+              std::to_string(phase_factor_) + "," +
               std::to_string(non_sustain_factor_) + "," +
               std::to_string(amplitude_decay_factor_) + "," +
               std::to_string(amplitude_attack_factor_) + "," +

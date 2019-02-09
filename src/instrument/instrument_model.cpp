@@ -32,8 +32,8 @@ InstrumentModelC::InstrumentModelC(uint16_t num_strings, std::string instrument_
   }
 }
 
-InstrumentModelC::InstrumentModelC(uint16_t num_uncoupled_strings,
-                                   uint16_t num_coupled_strings,
+InstrumentModelC::InstrumentModelC(uint16_t num_coupled_strings,
+                                   uint16_t num_uncoupled_strings,
                                    std::string instrument_name) {
   error_score_ = std::numeric_limits<double>::max();
   name_ = instrument_name;
@@ -62,8 +62,9 @@ void InstrumentModelC::AddTunedString(const oscillator::StringOscillatorC a_tune
  * @parameters: none,
  * @returns: none
  */
-void InstrumentModelC::AddUntunedString(const bool is_uncoupled) {
-  sound_strings_.push_back(std::move(oscillator::StringOscillatorC::CreateUntunedString(is_uncoupled)));
+void InstrumentModelC::AddUntunedString(const bool is_coupled) {
+  sound_strings_.push_back(
+      std::move(oscillator::StringOscillatorC::CreateUntunedString(is_coupled)));
 }
 
 /*
@@ -102,7 +103,7 @@ std::string InstrumentModelC::ToCsv(SortType sort_type) {
   for (size_t j = 0; j < sound_strings_.size(); j++) {
     return_csv += sound_strings_[j]->ToCsv();
     if (j + 1 != sound_strings_.size()) {
-      return_csv += ",";
+      return_csv += "\n";
     }
   }
 
