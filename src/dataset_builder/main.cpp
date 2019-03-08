@@ -31,8 +31,9 @@ static void AppUsage() {
             << "-n --dataset-size <number of samples to generate \n"
             << "-c --uncoupled-oscilators<0> <>\n"
             << "-s --instrument-size <50>\n"
-            << "-t --sample-time <5>\n"
+            << "-t --sample-time <2>\n"
             << "-d --data_save <'data'> (save data)"
+            << "-p --startpoint <0> (save data)"
             << std::endl;
 }
 
@@ -42,6 +43,7 @@ int main(int argc, char** argv) {
   uint16_t uncoupled_oscilators = 0;
   uint16_t dataset_size = 100;
   uint32_t sample_time = 2;  // In seconds
+  uint32_t starting_point = 0;
   std::string data_output = "data";
 
   // Parse arguments.
@@ -55,7 +57,8 @@ int main(int argc, char** argv) {
         (arg == "-m") || (arg == "--midi") ||
         (arg == "-s") || (arg == "--instrument-size") ||
         (arg == "-d") || (arg == "--data_save") ||
-        (arg == "-c") || (arg == "--uncoupled-oscilators")) &&
+        (arg == "-c") || (arg == "--uncoupled-oscilators") ||
+        (arg == "-p") || (arg == "--startpoint")) &&
         (i + 1 < argc)) {
       std::string arg2 = argv[++i];
       std::cout << arg << " " << arg2 << std::endl;
@@ -74,6 +77,9 @@ int main(int argc, char** argv) {
       else if ((arg == "-d") || (arg == "--data_save")) {
         data_output = arg2;
       }
+      else if ((arg == "-p") || (arg == "--startpoint")) {
+        starting_point = (uint32_t)std::stoul(arg2);
+      }
       else {
         std::cerr << "--destination option requires one argument." << std::endl;
         return EXIT_BAD_ARGS;
@@ -81,7 +87,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  std::random_device random_device;   // Obtain a random number from hardware.
+  std::random_device random_device;                   // Obtain a random number from hardware.
   std::mt19937 eng(random_device());                  // Seed the generator.
   std::uniform_real_distribution<> real_distr(0, 1);  // Define the range.
   uint32_t num_samples = SAMPLE_RATE * sample_time;
@@ -90,7 +96,7 @@ int main(int argc, char** argv) {
   std::cout << "Building dataset...";
   std::cout << uncoupled_oscilators << std::endl;
   for (size_t i = 0; i < dataset_size;) {
-    std::array<double, 2> notes_played { 2000 * real_distr(eng), 2000 * real_distr(eng) };
+    std::array<double, 2> notes_played {500 + 2000 * real_distr(eng), 500 + 2000 * real_distr(eng) };
     double velocity { real_distr(eng) };
 
     // Generate random sustain signal
@@ -124,7 +130,6 @@ int main(int argc, char** argv) {
     }
     std::cout << i << "\n";
 
-
     // Adjust the gains so that the velocities is distributed normally.
     // This is done as notes, higher velocities are more likely to cause distortion
     double redrisibuted_velocity = real_distr(eng);
@@ -132,7 +137,7 @@ int main(int argc, char** argv) {
 
     // Write out the sample to a mono .wav file
     wave::MonoWaveWriterC wave_writer(full_sample);
-    wave_writer.Write(data_output + "/sample_" + std::to_string(i) + ".wav");
+    wave_writer.Write(data_output + "/sample_" + std::to_string(starting_point+i) + ".wav");
 
     // Stringify the input parameters and save to .data file
     std::string sustain_str = "";
@@ -149,9 +154,9 @@ int main(int argc, char** argv) {
                                   std::to_string(notes_played[1])  + "\n";
     instrument_meta += std::to_string(redrisibuted_velocity) + "\n";
     instrument_meta += sustain_str;
-    logging::LogC::WriteFile(data_output + "/sample_" + std::to_string(i) + ".meta",
+    logging::LogC::WriteFile(data_output + "/sample_" + std::to_string(starting_point+i) + ".meta",
                              instrument_meta);
-    logging::LogC::WriteFile(data_output + "/sample_" + std::to_string(i) + ".data",
+    logging::LogC::WriteFile(data_output + "/sample_" + std::to_string(starting_point+i) + ".data",
                              instrument_data);
 
     i++;

@@ -122,9 +122,20 @@ double StringOscillatorC::NextSample(const bool sustain) {
   // Calculate frequency state.
   frequency_state_ = frequency_state_ * frequency_decay_rate_;
 
+  if(frequency_state_ > 15000){
+
+  }
   // generate sample.
   double sample_val = SineWave();
   sample_pos_ += SAMPLE_INCREMENT;
+
+  // Apply some filtering
+  if(frequency_state_ > 20000){
+    sample_val = 0;
+  }
+  else if (frequency_state_ > 15000) {
+    sample_val = sample_val * (1 - 0.0005*frequency_state_ + 9);
+  }
   return sample_val;
 }
 
@@ -208,13 +219,13 @@ std::unique_ptr<StringOscillatorC> StringOscillatorC::CreateUntunedString(const 
   std::mt19937 eng(random_device());                  // seed the generator.
   std::uniform_real_distribution<> real_distr(0, 1);  // define the range.
 
-  double phase = real_distr(eng);  // Maps to 0 to TAU
-  double freq_factor = real_distr(eng);  // Maps to 0 to max_uncoupled_frequency_factor  or max max_coupled_frequency_factor
-  double amplitude_factor = real_distr(eng);  // Maps to 0 to 1
+  double phase = real_distr(eng);               // Maps to 0 to TAU
+  double freq_factor = real_distr(eng);         // Maps to 0 to max_uncoupled_frequency_factor  or max max_coupled_frequency_factor
+  double amplitude_factor = real_distr(eng);    // Maps to 0 to 1
   double non_sustain_factor = real_distr(eng);  // Maps to min_amplitude_decay_factor to 1;
-  double amplitude_decay = real_distr(eng);  // Maps to min_amplitude_decay_factor to 1;
-  double amplitude_attack = real_distr(eng);  // Maps to 0 to max Attack rate;
-  double frequency_decay = real_distr(eng);  // Maps to min_amplitude_decay_factor to 1;
+  double amplitude_decay = real_distr(eng);     // Maps to min_amplitude_decay_factor to 1;
+  double amplitude_attack = real_distr(eng);    // Maps to 0 to max Attack rate;
+  double frequency_decay = real_distr(eng);     // Maps to min_amplitude_decay_factor to 1;
 
   auto untuned_string = std::unique_ptr<StringOscillatorC> {
     new StringOscillatorC(phase,
