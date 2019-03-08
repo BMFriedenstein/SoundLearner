@@ -48,3 +48,4 @@ src/player/StringSoundsPlayer.debug
 /src/genetic_trainer/StringSoundsTrainer.debug
 /.pydevproject
 /.settings/org.eclipse.core.resources.prefs
+/src/sox_log/*
