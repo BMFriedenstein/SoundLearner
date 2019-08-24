@@ -4,7 +4,7 @@ SOURCES=main.cpp
 OBJ=$(SOURCES:.cpp=.o)
 TARGET = StringSoundsPlayer
 LIBS= midi wave instrument
-LDLIBS= -L../../include $(addprefix -l, $(LIBS))
+LDLIBS= -L../../shared $(addprefix -l, $(LIBS))
 DEPS=
 .PHONY: clean
 
@@ -19,5 +19,5 @@ $(LIBS):
 %.o: %.cpp
 	$(CXX) -c $< -o $@  $(CFLAGS)
 
-clean:
+clean: $(LIBS)	
 	rm -rf *.o *.d $(TARGET) *.debug

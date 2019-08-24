@@ -1,11 +1,10 @@
 CXX=icc
-CFLAGS=-Wall -02 -xHASWELL -ansi-alias -g -std=c++14 -I./ -I../ -I../../
+CFLAGS=-Wall -Ofast -xHASWELL -ansi-alias -g -std=c++14 -I./ -I../ -I../../
 SOURCES=main.cpp
 OBJS=$(SOURCES:.cpp=.o)
 TARGET= DatatsetBuilder
-LIBS= midi wave instrument logger
-LDLIBS=-L../../include $(addprefix -l, $(LIBS))
-HEADERS=
+LIBS= midi wave fft instrument logger
+LDLIBS=-L../../shared $(addprefix -l, $(LIBS)) -lfftw3
 DEPS:=$(HEADERS:.h=.d)
 -include $(DEPS)
 

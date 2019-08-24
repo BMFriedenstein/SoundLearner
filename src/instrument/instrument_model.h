@@ -32,8 +32,8 @@ class InstrumentModelC {
   double diff_score_;
 
   bool score_is_cached_ = false;
-  InstrumentModelC(uint16_t num_strings,
-                   std::string instrument_name);
+  InstrumentModelC(std::vector<std::string>& csv_string, std::string& a_name);
+  InstrumentModelC(uint16_t num_strings, std::string instrument_name);
   InstrumentModelC(uint16_t num_coupled_strings,
                    uint16_t num_uncoupled_strings,
                    std::string instrument_name);
@@ -53,7 +53,9 @@ class InstrumentModelC {
   std::vector<int16_t> GenerateIntSignal(const double velocity,
                                          const double frequency,
                                          const uint32_t num_of_samples,
-                                         std::vector<bool>& sustain);
+                                         std::vector<bool>& sustain,
+                                         bool& has_distorted_out,
+                                         bool return_on_distort = true);
 
   std::unique_ptr<InstrumentModelC> TuneInstrument(const uint8_t amount);
   void AmendGain(const double factor);

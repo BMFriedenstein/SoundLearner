@@ -12,8 +12,8 @@
  *      Author: Brandon
  */
 
-#ifndef INCLUDE_COMMON_H_
-#define INCLUDE_COMMON_H_
+#ifndef SHARED_COMMON_H_
+#define SHARED_COMMON_H_
 
 #include <cstdint>
 
@@ -25,6 +25,7 @@ const uint32_t EXIT_BAD_SOURCE_SIGNAL = 3;
 
 // Application constants
 const uint32_t SAMPLE_RATE = 44100;
+const uint32_t POW_2_SAMPLE_SIZE=32768;
 const uint32_t BITDEPTH = 16;
 const int32_t MIN_AMP = -32768;
 const int32_t MAX_AMP = 32767;
@@ -67,4 +68,4 @@ typedef struct WAV_HEADER {
 
 } wav_header;
 
-#endif // INCLUDE_COMMON_H_
+#endif // SHARED_COMMON_H_

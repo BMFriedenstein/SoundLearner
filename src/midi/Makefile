@@ -12,10 +12,10 @@ all: $(TARGET)
 
 $(TARGET): $(OBJ)
 	ar crf $@ $(OBJ)
-	cp $@ ../../include/
+	cp $@ ../../shared/
 
 %.o: %.cpp
 	$(CXX) -c $< -o $@  $(CFLAGS)
 
 clean:
-	rm -rf *.o *.d $(TARGET) ../../include/$(TARGET)
+	rm -rf *.o *.d $(TARGET) ../../shared/$(TARGET)

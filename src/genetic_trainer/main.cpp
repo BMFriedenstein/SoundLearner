@@ -12,17 +12,15 @@
  *      Author: Brandon
  */
 
-#include <cstdio>
-
+#include <bits/stdint-intn.h>
+#include <bits/stdint-uintn.h>
 #include <iostream>
 #include <string>
 #include <vector>
 
-#include "../genetic_trainer/trainer.h"
-#include "include/common.h"
-#include "instrument/string_oscillator.h"
-#include "instrument/instrument_model.h"
+#include "shared/common.h"
 #include "wave/wave.h"
+#include "trainer.h"
 
 static void AppUsage() {
   std::cerr << "Usage: \n"

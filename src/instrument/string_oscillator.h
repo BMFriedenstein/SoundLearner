@@ -20,19 +20,22 @@
 #include <memory>
 #include <string>
 
-#include "include/common.h"
+#include "shared/common.h"
 
 namespace instrument {
 namespace oscillator {
-
-const double MIN_AMPLITUDE_CUTOFF     = 0.0001;
-const double MIN_AMPLITUDE_DECAY_RATE     = 0.99998;   // -3db in 0.1s
-const double MIN_FREQUENCY_DECAY_RATE     = 0.9999998;  // -3db in 100s
-const double MAX_AMPLITUDE_ATTACK_RATE    = 0.0001;
-const double MAX_COUPLED_FREQUENCY_FACTOR   = 25.0;      //  30 * 1000 > 20 kHz
-const double MAX_UNCOUPLED_FREQUENCY_FACTOR = 18500.0;   //  1.0 * 18.5 kHz
-const double SAMPLE_INCREMENT            = 1.0 / static_cast<double>(SAMPLE_RATE);
-
+const double SAMPLE_INCREMENT               = 1.0/SAMPLE_RATE;                     // 0.00002267573
+const double MIN_AMPLITUDE_CUTOFF           = 0;                                   // 0
+const double MAX_AMPLITUDE_CUTOFF           = 1;                                   // 1
+const double MIN_AMPLITUDE_DECAY_RATE       = std::pow(0.5,SAMPLE_INCREMENT/20);   // 0.99999842823       50% at 20 second
+const double MAX_AMPLITUDE_DECAY_RATE       = std::pow(0.5,SAMPLE_INCREMENT/0.02); // 0.99921442756       50% at 20 millisecond
+const double MIN_FREQUENCY_DECAY_RATE       = 1;                                   // 1                   no decay
+const double MAX_FREQUENCY_DECAY_RATE       = std::pow(0.5,SAMPLE_INCREMENT/180);  // 0.99999991268       50% at 180 second
+const double MAX_AMPLITUDE_ATTACK_RATE      = 20*SAMPLE_INCREMENT;                 // 0.002267573         50 ms
+const double MIN_AMPLITUDE_ATTACK_RATE      = SAMPLE_INCREMENT/150;                // 1.5117158e-7        150 seconds
+const double MAX_COUPLED_FREQUENCY_FACTOR   = 10.0;                                // 10
+const double MAX_UNCOUPLED_FREQUENCY_FACTOR = 20000.0;                             // 20000
+const double MIN_FREQUENCY_FACTOR           = 20/20000;                            // 0.001
 
 class StringOscillatorC {
  public:
@@ -54,6 +57,7 @@ class StringOscillatorC {
   std::string ToJson();
   std::unique_ptr<StringOscillatorC> TuneString(const uint8_t amount);
   static std::unique_ptr<StringOscillatorC> CreateUntunedString(const bool is_coupled=true);
+  static std::unique_ptr<StringOscillatorC> CreateStringFromCsv(const std::string& csv_string);
 
   double GetFreqFactor() const { return start_frequency_factor_; }
   double GetAmpFactor() const { return start_amplitude_factor_; }

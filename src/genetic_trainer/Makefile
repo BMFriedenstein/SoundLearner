@@ -3,8 +3,8 @@ CFLAGS=-Wall -02 -xHASWELL -ansi-alias -g -std=c++14 -I./ -I../ -I../../
 SOURCES=main.cpp trainer.cpp 
 OBJS=$(SOURCES:.cpp=.o)
 TARGET= StringSoundsTrainer
-LIBS= midi wave instrument fft logger
-LDLIBS=-L../../include $(addprefix -l, $(LIBS))
+LIBS= midi wave instrument fft logger fftw3
+LDLIBS=-L../../shared $(addprefix -l, $(LIBS))
 HEADERS=trainer.h
 DEPS:=$(HEADERS:.h=.d)
 -include $(DEPS)
