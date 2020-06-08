@@ -25,16 +25,11 @@ class LogC {
   std::string filename_;
   bool cpy_to_console_;
  public:
-  LogC(std::string filename, bool to_console)
-      : filename_(filename),
-        cpy_to_console_(to_console) {
-  }
+  LogC(const std::string& filename, bool to_console) : filename_(filename), cpy_to_console_(to_console) { }
   void Start();
   void WriteLine(const std::string& line);
 
-  inline void operator<<(const std::string& line) {
-    WriteLine(line);
-  }
+  inline void operator<<(const std::string& line) { WriteLine(line); }
   static void WriteFile(const std::string filename, const std::string& content);
 };
 }

@@ -18,7 +18,8 @@
 #include <vector>
 #include <memory>
 #include <string>
-#include "include/common.h"
+
+#include "shared/common.h"
 
 namespace wave {
 

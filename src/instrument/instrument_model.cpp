@@ -23,6 +23,17 @@
 #include <utility>
 
 namespace instrument {
+
+InstrumentModelC::InstrumentModelC(std::vector<std::string>& csv_strings, std::string& a_name) {
+  error_score_ = std::numeric_limits<double>::max();
+  mae_score_= std::numeric_limits<double>::max();
+  corr_score_= std::numeric_limits<double>::max();
+  diff_score_= std::numeric_limits<double>::max();
+  name_ = a_name;
+  for (const auto str_i : csv_strings) {
+    sound_strings_.push_back(std::move(oscillator::StringOscillatorC::CreateStringFromCsv(str_i)));
+  }
+}
 InstrumentModelC::InstrumentModelC(uint16_t num_strings, std::string instrument_name) {
   error_score_ = std::numeric_limits<double>::max();
   name_ = instrument_name;
@@ -157,16 +168,17 @@ std::vector<double> InstrumentModelC::GenerateSignal(const double velocity,
 std::vector<int16_t> InstrumentModelC::GenerateIntSignal(const double velocity,
                                                          const double frequency,
                                                          const uint32_t num_of_samples,
-                                                         std::vector<bool>& sustain) {
+                                                         std::vector<bool>& sustain,
+                                                         bool& has_distorted_out,
+                                                         bool return_on_distort) {
   std::vector<int16_t> signal(num_of_samples);
-
   // Check that we have a sustain value for each sample.
   if (sustain.size() != num_of_samples) {
     std::cout << "Warning!!! Sustain array not equal to sample length"
               << std::endl;
     sustain.resize(num_of_samples);
   }
-
+  has_distorted_out = false;
   // Initiate each of the strings.
   for (size_t i = 0; i < sound_strings_.size(); i++) {
     sound_strings_[i]->PrimeString(frequency, velocity);
@@ -182,9 +194,14 @@ std::vector<int16_t> InstrumentModelC::GenerateIntSignal(const double velocity,
     // Convert to int32.
     if (sample_val > MAX_AMP) {
       sample_val = MAX_AMP;
+      has_distorted_out = true;
     }
     else if (sample_val < MIN_AMP) {
       sample_val = MIN_AMP;
+      has_distorted_out = true;
+    }
+    if( return_on_distort && has_distorted_out ){
+       return signal;
     }
 
     if (sample_val < 0) {

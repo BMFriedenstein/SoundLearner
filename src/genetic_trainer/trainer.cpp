@@ -14,18 +14,18 @@
 
 #include "trainer.h"
 
-#include <cmath>
-#include <cstdio>
-
-#include <fstream>
+#include <bits/stdint-intn.h>
+#include <bits/stdint-uintn.h>
+#include <stddef.h>
 #include <algorithm>
+#include <cmath>
+#include <complex>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
-#include <utility>
 
-#include "logger/logger.h"
+#include "shared/common.h"
 #include "wave/wave.h"
-#include "fft/fft.h"
 
 namespace instrument {
 inline bool cmp_by_name(const std::unique_ptr<InstrumentModelC>& a,
@@ -48,7 +48,6 @@ InstumentTrainerC::InstumentTrainerC(uint16_t num_starting_occilators,
         new instrument::InstrumentModelC(num_starting_occilators, "instrument_" + std::to_string(i)));
     trainees_.push_back(std::move(new_instrument));
   }
-
 }
 
 GeneticInstumentTrainerC::GeneticInstumentTrainerC(uint16_t num_starting_occilators,
@@ -111,7 +110,7 @@ double InstumentTrainerC::CrossCorrelation(const std::vector<int16_t>& tgt_audio
     cmplx_tgt[src_audio_.size()-(1+s)] = tgt_audio[s];
   }
 
-  Fft::convolve(cmplx_src, cmplx_tgt, cmplx_corr);
+ //  Fft::convolve(cmplx_src, cmplx_tgt, cmplx_corr);
 
   return MAX_AMP * src_audio_.size() / (std::abs(cmplx_corr[src_audio_.size()]));
 }

@@ -1,65 +1,65 @@
-/*
- * Free FFT and convolution (C++)
- *
- * Copyright (c) 2017 Project Nayuki. (MIT License)
- * https://www.nayuki.io/page/free-small-fft-in-multiple-languages
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of
- * this software and associated documentation files (the "Software"), to deal in
- * the Software without restriction, including without limitation the rights to
- * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
- * the Software, and to permit persons to whom the Software is furnished to do so,
- * subject to the following conditions:
- * - The above copyright notice and this permission notice shall be included in
- *   all copies or substantial portions of the Software.
- * - The Software is provided "as is", without warranty of any kind, express or
- *   implied, including but not limited to the warranties of merchantability,
- *   fitness for a particular purpose and noninfringement. In no event shall the
- *   authors or copyright holders be liable for any claim, damages or other
- *   liability, whether in an action of contract, tort or otherwise, arising from,
- *   out of or in connection with the Software or the use or other dealings in the
- *   Software.
- */
-
 #ifndef SRC_FFT_FFT_H_
 #define SRC_FFT_FFT_H_
 
-#include <complex>
+#include "shared/common.h"
+#include <bits/stdint-uintn.h>
+#include <array>
+#include <cstddef>
 #include <vector>
 
 namespace Fft {
+const uint8_t real = 0;
+const uint8_t imag = 1;
+enum WindowTypes {
+   NONE,
+   HANN,
+   FLAT_TOP,
+   UNIFORM,
+   FORCE,
+   HAMMING,
+   KAISER_BESSEL,
+   EXPONENTIAL
+   // TODO others
+};
+void WindowFunction(std::vector<double>& in_out_data, WindowTypes window_function);
+void OneSidedFFT(std::vector<double>& in_out_data,
+                 uint32_t fft_size,
+                 const double freq,
+                 WindowTypes window_function = HANN);
 
-/*
- * Computes the discrete Fourier transform (DFT) of the given complex vector, storing the result back into the vector.
- * The vector can have any length. This is a wrapper function.
- */
-void transform(std::vector<std::complex<double> > &vec);
 
-/*
- * Computes the inverse discrete Fourier transform (IDFT) of the given complex vector, storing the result back into the vector.
- * The vector can have any length. This is a wrapper function. This transform does not perform scaling, so the inverse is not a true inverse.
- */
-void inverseTransform(std::vector<std::complex<double> > &vec);
+namespace spectrogram {
+std::vector<double> LogTransform(const uint32_t tgt_resolution, std::vector<double>& vec);
+template<typename T>
+std::vector<std::vector<double>> CreateSpectrogram(const std::vector<T>& source_signal,
+                                                   const uint32_t resolution,
+                                                   const double min_val,
+                                                   const double max_val){
+   double slope_m = -1 / (min_val - max_val);
+   auto return_spectogram = std::vector<std::vector<double>>(resolution);
+   auto begin_iter = source_signal.begin();
+   auto end_iter = source_signal.begin();
+   uint32_t increment_size = source_signal.size()/resolution;
 
-/*
- * Computes the discrete Fourier transform (DFT) of the given complex vector, storing the result back into the vector.
- * The vector's length must be a power of 2. Uses the Cooley-Tukey decimation-in-time radix-2 algorithm.
- */
-void transformRadix2(std::vector<std::complex<double> > &vec);
+   for (auto window = return_spectogram.begin(); window != return_spectogram.end(); ++window) {
+      end_iter += increment_size;
+      *window = std::vector<double>(begin_iter, end_iter);
+      Fft::OneSidedFFT(*window, resolution, SAMPLE_RATE);
 
-/*
- * Computes the discrete Fourier transform (DFT) of the given complex vector, storing the result back into the vector.
- * The vector can have any length. This requires the convolution function, which in turn requires the radix-2 FFT function.
- * Uses Bluestein's chirp z-transform algorithm.
- */
-void transformBluestein(std::vector<std::complex<double> > &vec);
-
-/*
- * Computes the circular convolution of the given complex vectors. Each vector's length must be the same.
- */
-void convolve(const std::vector<std::complex<double> > &vecx,
-              const std::vector<std::complex<double> > &vecy,
-              std::vector<std::complex<double> > &vecout);
+      // Normalize to values between 0 and 1
+      for (auto val_iter = window->begin(); val_iter != window->end(); ++val_iter) {
+         *val_iter *= slope_m;
+         if (*val_iter > max_val) {
+            *val_iter = 1;
+         }
+         else if (*val_iter < min_val) {
+            *val_iter = 0;
+         }
+      }
+      begin_iter = end_iter;
+   }
+   return return_spectogram;
 }
-
+}
+}
 #endif /* SRC_FFT_FFT_H_ */

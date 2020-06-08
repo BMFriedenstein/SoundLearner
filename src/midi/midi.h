@@ -15,6 +15,6 @@
 #ifndef SRC_MIDI_MIDI_H_
 #define SRC_MIDI_MIDI_H_
 
-#include "include/common.h"
+#include "shared/common.h"
 
 #endif  // SRC_MIDI_MIDI_H_

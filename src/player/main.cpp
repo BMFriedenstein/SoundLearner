@@ -11,10 +11,91 @@
  *  Created on: 02 Jan 2019
  *      Author: Brandon
  */
+
 #include <cstdio>
 #include <iostream>
+#include <string>
+#include <fstream>
+
+#include "shared/common.h"
+#include "logger/logger.h"
+#include "instrument/string_oscillator.h"
+#include "instrument/instrument_model.h"
+#include "wave/wave.h"
+
+static void AppUsage() {
+  std::cerr << "Usage: \n"
+            << "-h --help\n"
+            << "-f --filename <'instrument'> \n"
+            << "-n --note<440>\n"
+            << "-v --velocity<100>\n"
+            << "-l --length<5s>\n"
+            << std::endl;
+}
+
 
 int main(int argc, char** argv) {
-  std::cout << "Test " << std::endl;
+  double velocity = 1.0;
+  double note_played = 440.0;
+  std::string filename = "";
+  uint32_t num_samples = 5*44100;
+  // Parse arguments.
+  for (int i = 1; i < argc; i++) {
+    std::string arg = argv[i];
+    if ((arg == "-h") || (arg == "--help")) {
+      AppUsage();
+      return EXIT_NORMAL;
+    }
+    if (((arg == "-f") || (arg == "--filename") ||
+         (arg == "-n") || (arg == "--note") ||
+         (arg == "-v") || (arg == "--velocity") ||
+         (arg == "-l") || (arg == "--length")) &&
+         (i + 1 < argc)) {
+      std::string arg2 = argv[++i];
+      std::cout << arg << " " << arg2 << std::endl;
+      if ((arg == "-f") || (arg == "--filename")) {
+        filename = arg2;
+      }
+      else if ((arg == "-n") || (arg == "--note")) {
+        note_played = (double) std::stof(arg2);
+      }
+      else if ((arg == "-v") || (arg == "--velocity")) {
+        velocity = ((uint8_t) std::stoi(arg2)) / 100.0;
+      }
+      else if ((arg == "-l") || (arg == "--length")) {
+        num_samples = ((uint32_t) std::stoul(arg2)) * 44100;
+      }
+      else {
+        std::cerr << "--destination option requires one argument." << std::endl;
+        return EXIT_BAD_ARGS;
+      }
+    }
+  }
+
+
+  // Now read the model
+  std::vector<std::string> instrument_strings;
+  std::ifstream file(filename);  //file just has some sentences
+  if (!file) {
+    std::cout << "unable to open file: " << filename << std::endl;
+    return EXIT_BAD_ARGS;
+  }
+
+  std::string string_line;
+  while (std::getline(file, string_line)) {
+    instrument_strings.push_back(string_line);
+    std::cout << string_line << std::endl;
+  }
+
+  std::cout << "\nmodel:\n" << std::endl;
+  std::vector<bool> blank_sus(num_samples);
+  instrument::InstrumentModelC instru_model(instrument_strings, filename);
+  std::cout << instru_model.ToJson() << std::endl;
+  std::vector<int16_t> sample = instru_model.GenerateIntSignal(velocity,
+                                                               note_played,
+                                                               num_samples,
+                                                               blank_sus);
+  wave::MonoWaveWriterC wave_writer(sample);
+  wave_writer.Write(filename + ".wav");
 }
 
