@@ -11,14 +11,17 @@ tf.reset_default_graph()
     
 IMG_SIZE = 512
 NUM_OUTPUTS = 50
-NUM_EPOCH = 101
+NUM_EPOCH = 10001
 BATCH_SIZE = 25
 SET_SIZE = 4000
+IMG_DEPTH = 2
 FLAGS = None
-X = tf.placeholder(tf.float16, shape=[None, IMG_SIZE,IMG_SIZE,3], name = "X")
+X = tf.placeholder(tf.float16, shape=[None, IMG_SIZE,IMG_SIZE,IMG_DEPTH], name = "X")
 Y = tf.placeholder(tf.float16, shape=[None,NUM_OUTPUTS,8], name = "Y")
 
+restore = False
 output_directory = "tmp"
+summary_directory = "summary/"
 
 def VariableSummaries(var):
     with tf.name_scope('summaries'):
@@ -62,43 +65,37 @@ def BuildModel():
     global X 
     global Y 
     with tf.name_scope('input'):        
-        X_reshaped = tf.reshape(X, shape=[-1,IMG_SIZE,IMG_SIZE,3])
+        X_reshaped = tf.reshape(X, shape=[-1,IMG_SIZE,IMG_SIZE,IMG_DEPTH])
     
-	# 512x512
+	# 2x512x512
     with tf.name_scope('l1'):
         conv1 = tf.layers.conv2d(
                 inputs=X_reshaped,
-                filters=5,
+                filters=8,
                 kernel_size=3,
                 padding="same",
                 activation=tf.nn.relu)
         pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
    
-   # 4x256x256
+   # 8x256x256
     with tf.name_scope('l2'):
         conv2 = tf.layers.conv2d(
                 inputs=pool1,
-                filters=8,
-                kernel_size=3,
+                filters=64,
+                kernel_size=5,
                 padding="same",
                 activation=tf.nn.relu)
         pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
     
-	# 8x128x128
+	# 64x128x128
     with tf.name_scope('l3'):
         conv3 = tf.layers.conv2d(
                 inputs=pool2,
-                filters=16,
+                filters=256,
                 kernel_size=3,
                 padding="same",
                 activation=tf.nn.relu)
-        conv4 = tf.layers.conv2d(
-                inputs=conv3,
-                filters=16,
-                kernel_size=3,
-                padding="same",
-                activation=tf.nn.relu)
-        pool3 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
+        pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], strides=2)
     
 	# 16x64x64
     with tf.name_scope('output_shaped'):
@@ -135,11 +132,14 @@ def GetDataset():
     count = 0
     for filename in os.listdir("img/"):
         if (count%100 is 0):
-            print(str(count) + " of " + str(SET_SIZE) + " " + str(count*512*512*3*16/8000000) + " MB")
+            print(str(count) + " of " + str(SET_SIZE) + " " + str(count*IMG_SIZE*IMG_SIZE*IMG_DEPTH*16/8000000) + " MB")
         if (count >= SET_SIZE):
             break
         pic = Image.open("img/"+filename).convert("RGB")
         pix = np.array(pic,dtype= np.float16)/255
+        
+        if(IMG_DEPTH is 2):
+           pix = np.delete(pix,1, axis=2)
         train_images.append(pix)
         count += 1
     count = 0
@@ -167,14 +167,19 @@ if __name__ == "__main__":
     optimizer, loss, out = BuildModel()
     GetDataset()
     counter = 0
+    
     with tf.name_scope("init_and_save"):
         init = tf.global_variables_initializer()
         saver = tf.train.Saver()  
-        
+         
     with tf.device("/gpu:0"):
         sess = tf.Session()
         init.run(session=sess)
-    train_writer = tf.summary.FileWriter( output_directory + '/train', sess.graph)
+        
+    if(restore):
+        saver.restore(sess, output_directory +"/model")
+        
+    train_writer = tf.summary.FileWriter( summary_directory, sess.graph)
     for epoch in range(NUM_EPOCH):
         for iteration in range(SET_SIZE//BATCH_SIZE):
             x_batch = train_images[iteration*BATCH_SIZE:iteration*BATCH_SIZE+BATCH_SIZE,:]
@@ -185,5 +190,5 @@ if __name__ == "__main__":
         print("Epoch: " + str(epoch+1) + " loss: " + str(totalloss))		
         train_writer.add_summary(summary, counter)
         if( epoch%25 is 0 ):
-            save_path = saver.save(sess, output_directory +"/model")
+            save_path = saver.save(sess, output_directory + "/model")
    

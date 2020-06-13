@@ -11,18 +11,21 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 from PIL import Image
-from cnn_model_trainer import X,BuildModel
+from cnn_model_trainer import X,BuildModel,IMG_DEPTH
 
 
 input_x = []
 model_name = "tmp/model"
-filename = "test_9992"
+filename = "test_0"
 optimizer, loss, out = BuildModel()
 saver = tf.train.Saver()
 with tf.Session() as sess: 
     pic = Image.open(filename + ".png").convert("RGB")
-    input_x.append(np.array(pic,dtype= np.float16)/255)
+    if(IMG_DEPTH is 2):
+        pic = np.delete(pic, 1, axis=2)
+    input_x.append(np.array(pic,dtype= np.float16)/255)    
     input_x = np.array(input_x, dtype=np.float16)
+    
     saver.restore(sess, model_name)
     sess.run(out, feed_dict={X: input_x})
     print("Model restored.")
