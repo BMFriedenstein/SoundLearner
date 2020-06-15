@@ -14,7 +14,6 @@
 #include "dataset_builder/dataset_builder.h"
 
 #include <cstdio>
-
 #include <iostream>
 #include <random>
 #include <string>
@@ -23,7 +22,6 @@
 
 #include "include/common.h"
 #include "include/filewriter.h"
-
 #include "instrument/instrument_model.h"
 #include "instrument/string_oscillator.h"
 
@@ -38,13 +36,12 @@ static inline void AppUsage() {
             << "-p --startpoint <0> (save data)" << std::endl;
 }
 
-int main(int argc, char **argv) {
-
+int main(int argc, char** argv) {
   // Application defaults.
   uint16_t coupled_oscilators = 50;
   uint16_t uncoupled_oscilators = 0;
   uint16_t dataset_size = 100;
-  uint32_t sample_time = 5; // In seconds
+  uint32_t sample_time = 5;  // In seconds
   uint32_t starting_point = 0;
 
   // Parse arguments.
@@ -54,12 +51,9 @@ int main(int argc, char **argv) {
       AppUsage();
       return EXIT_NORMAL;
     }
-    if (((arg1 == "-n") || (arg1 == "--dataset-size") || (arg1 == "-m") ||
-         (arg1 == "--midi") || (arg1 == "-s") ||
-         (arg1 == "--instrument-size") || (arg1 == "-d") ||
-         (arg1 == "--data_save") || (arg1 == "-c") ||
-         (arg1 == "--uncoupled-oscilators") || (arg1 == "-p") ||
-         (arg1 == "--startpoint")) &&
+    if (((arg1 == "-n") || (arg1 == "--dataset-size") || (arg1 == "-m") || (arg1 == "--midi") || (arg1 == "-s") ||
+         (arg1 == "--instrument-size") || (arg1 == "-d") || (arg1 == "--data_save") || (arg1 == "-c") ||
+         (arg1 == "--uncoupled-oscilators") || (arg1 == "-p") || (arg1 == "--startpoint")) &&
         (i + 1 < argc)) {
       const std::string arg2 = argv[++i];
       std::cout << arg1 << " " << arg2 << std::endl;
@@ -82,10 +76,9 @@ int main(int argc, char **argv) {
 
   std::cout << "Building dataset...";
   std::cout << uncoupled_oscilators << std::endl;
-  const double note_played_freq = 1000; //  C3 and C5
-  const double velocity = 0.1;          // TODO for now+ 0.25*real_distr(eng)
-  auto builder = DataBuilder(sample_time, coupled_oscilators,
-                             uncoupled_oscilators, starting_point);
+  const double note_played_freq = 1000;  //  C3 and C5
+  const double velocity = 0.1;           // TODO for now+ 0.25*real_distr(eng)
+  auto builder = DataBuilder(sample_time, coupled_oscilators, uncoupled_oscilators, starting_point);
   for (uint32_t i = 0; i < dataset_size;) {
     builder.DataBuildJob(note_played_freq, velocity, i);
   }
@@ -93,20 +86,18 @@ int main(int argc, char **argv) {
   return EXIT_NORMAL;
 }
 
-void DataBuilder::DataBuildJob(const double &velocity, const double &freq, uint32_t& index) {
+void DataBuilder::DataBuildJob(const double& velocity, const double& freq, uint32_t& index) {
   std::uniform_real_distribution<float> bool_distr;
   std::vector<bool> sustain(num_samples);
   std::string sustain_str = "";
   for (std::size_t i{0}; i < sustain.size(); i++) {
-    sustain[i] = i && sustain[i] ? bool_distr(rand_eng) > 0.2
-                                 : bool_distr(rand_eng) > 0.8;
+    sustain[i] = i && sustain[i] ? bool_distr(rand_eng) > 0.2 : bool_distr(rand_eng) > 0.8;
     sustain_str += std::to_string(sustain[i]) + (i < (sustain.size() - 1) ? "," : "");
   }
-  instrument::InstrumentModelC rand_instrument(
-      coupled_oscilators, uncoupled_oscilators, std::to_string(index));
+  instrument::InstrumentModelC rand_instrument(coupled_oscilators, uncoupled_oscilators, std::to_string(index));
   bool sample_has_distorted = false;
-  std::vector<int16_t> sample_a = rand_instrument.GenerateIntSignal(
-      velocity, freq, num_samples, sustain, sample_has_distorted);
+  std::vector<int16_t> sample_a =
+      rand_instrument.GenerateIntSignal(velocity, freq, num_samples, sustain, sample_has_distorted);
 
   // Skip generated samples that distort.
   if (sample_has_distorted) {
@@ -119,11 +110,9 @@ void DataBuilder::DataBuildJob(const double &velocity, const double &freq, uint3
   wave_writer.Write(file_name + ".wav");
 
   // Write out the spectrogram to a monochrome .bmp file
-  const auto spectogram =
-      fft::spectrogram::CreateSpectrogram<int16_t, uint32_t, img_resolution>(
-          sample_a, fft_spectogram_min, fft_spectogram_max);
-  filewriter::bmp::BMPWriterC<img_resolution, img_resolution> bmp_writer(
-      spectogram);
+  const auto spectogram = fft::spectrogram::CreateSpectrogram<int16_t, uint32_t, img_resolution>(
+      sample_a, fft_spectogram_min, fft_spectogram_max);
+  filewriter::bmp::BMPWriterC<img_resolution, img_resolution> bmp_writer(spectogram);
   bmp_writer.Write(file_name + ".bmp");
 
   // Write out meta and data files

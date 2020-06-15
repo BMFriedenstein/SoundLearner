@@ -16,10 +16,10 @@
 #ifndef INCLUDE_FFT_H_
 #define INCLUDE_FFT_H_
 
-#include <cmath>
-#include <cstring>
-#include <cstddef>
 #include <fftw3.h>
+#include <cmath>
+#include <cstddef>
+#include <cstring>
 
 #include <algorithm>
 #include <array>
@@ -45,33 +45,31 @@ enum WindowTypes {
 };
 
 template <typename T, std::size_t A>
-static inline void WindowFunction(std::array<T, A> &in_out_data,
-                    WindowTypes window_function) {
+static inline void WindowFunction(std::array<T, A>& in_out_data, WindowTypes window_function) {
   static_assert(std::is_arithmetic<T>::value, "Not an arithmetic type");
   switch (window_function) {
-  case HANN: {
-    constexpr double scale_val = M_PI / A;
-    std::size_t i{0};
-    std::transform(in_out_data.begin(), in_out_data.end(), in_out_data.begin(),
-                   [&i, &scale_val](auto in_val) {
-                     (void)in_val;
-                     return T(std::pow(std::sin(i++ / scale_val), 2));
-                   });
-  } break;
-  case FLAT_TOP: // TODO
-  case UNIFORM:  // TODO
-  case FORCE:  // TODO
-  case HAMMING:  // TODO
-  case KAISER_BESSEL:  // TODO
-  case EXPONENTIAL:  // TODO
-  case NONE: // TODO
-  default:
-    break;
+    case HANN: {
+      constexpr double scale_val = M_PI / A;
+      std::size_t i{0};
+      std::transform(in_out_data.begin(), in_out_data.end(), in_out_data.begin(), [&i, &scale_val](auto in_val) {
+        (void)in_val;
+        return T(std::pow(std::sin(i++ / scale_val), 2));
+      });
+    } break;
+    case FLAT_TOP:       // TODO
+    case UNIFORM:        // TODO
+    case FORCE:          // TODO
+    case HAMMING:        // TODO
+    case KAISER_BESSEL:  // TODO
+    case EXPONENTIAL:    // TODO
+    case NONE:           // TODO
+    default:
+      break;
   }
 }
 
-template <typename T,std::size_t A>
-static void OneSidedFFT(std::array<T, A> &in_out_data, double freq, WindowTypes window_function = HANN) {
+template <typename T, std::size_t A>
+static void OneSidedFFT(std::array<T, A>& in_out_data, double freq, WindowTypes window_function = HANN) {
   static_assert(std::is_arithmetic<T>::value, "Not an arithmetic type");
   constexpr std::size_t in_fft_size = 2 * A;
   WindowFunction<T, A>(in_out_data, window_function);
@@ -105,8 +103,10 @@ namespace spectrogram {
 //   return std::vector<double>(); // TODO
 // }
 
-template <typename Ti,typename To ,std::size_t R>
-static std::array<std::array<To, R>, R> CreateSpectrogram(const std::vector<Ti> &source_signal, Ti min_val, Ti max_val) {
+template <typename Ti, typename To, std::size_t R>
+static std::array<std::array<To, R>, R> CreateSpectrogram(const std::vector<Ti>& source_signal,
+                                                          Ti min_val,
+                                                          Ti max_val) {
   static_assert(std::is_arithmetic<Ti>::value, "Not an arithmetic type");
   static_assert(std::is_arithmetic<To>::value, "Not an arithmetic type");
   const double slope_m = -1 / (min_val - max_val);
@@ -117,18 +117,17 @@ static std::array<std::array<To, R>, R> CreateSpectrogram(const std::vector<Ti> 
   for (auto window = return_spectogram.begin(); window != return_spectogram.end(); ++window) {
     std::array<Ti, R> frame;
     std::memset(frame.data(), 0, frame.size());
-    std::memcpy(frame.data(), &source_signal[source_idx], std::min(frame.size(),source_signal.size()-source_idx ));
+    std::memcpy(frame.data(), &source_signal[source_idx], std::min(frame.size(), source_signal.size() - source_idx));
     OneSidedFFT<Ti, R>(frame, SAMPLE_RATE);
 
     // Normalize to values between 0 and 1
-    std::transform(window->begin(), window->end(), window->begin(),
-                   [&](const auto &val) {
-                     return static_cast<To>(std::clamp<double>(val * slope_m, min_val, max_val));
-                   });
+    std::transform(window->begin(), window->end(), window->begin(), [&](const auto& val) {
+      return static_cast<To>(std::clamp<double>(val * slope_m, min_val, max_val));
+    });
     source_idx += increment_size;
   }
   return return_spectogram;
 }
-} // namespace spectrogram
-} // namespace fft
+}  // namespace spectrogram
+}  // namespace fft
 #endif /* INCLUDE_FFT_H_ */

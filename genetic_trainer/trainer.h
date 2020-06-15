@@ -32,6 +32,7 @@ class InstumentTrainerC {
   std::vector<int16_t> src_audio;
   std::vector<std::unique_ptr<instrument::InstrumentModelC>> trainees;
   double src_energy;
+
  public:
   virtual double GetError(const std::vector<int16_t>& tgt_audio,
                           double& corr_score,
@@ -43,8 +44,7 @@ class InstumentTrainerC {
                     uint16_t class_size,
                     std::vector<int16_t>& src_audio,
                     std::string& progress_location);
-  virtual ~InstumentTrainerC() {
-  }
+  virtual ~InstumentTrainerC() {}
 };
 
 // A training framework based on a genetic algorithm.
@@ -68,8 +68,7 @@ class GeneticInstumentTrainerC : public InstumentTrainerC {
                            std::vector<int16_t>& src_audio,
                            std::string& progress_location,
                            uint32_t gens_per_addition);
-  ~GeneticInstumentTrainerC() {
-  }
+  ~GeneticInstumentTrainerC() {}
   void Start(const uint16_t a_num_of_generations);
 };
 

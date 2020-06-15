@@ -28,4 +28,4 @@ constexpr uint32_t BITDEPTH = 16;
 constexpr int32_t MIN_AMP = -32768;
 constexpr int32_t MAX_AMP = 32767;
 
-#endif // INCLUDE_COMMON_H_
+#endif  // INCLUDE_COMMON_H_

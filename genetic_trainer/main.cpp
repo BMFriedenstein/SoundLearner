@@ -31,8 +31,7 @@ static void AppUsage() {
             << "-M --max-instrument-size <1000>\n"
             << "-r --instrument-growth-rate <0> (generations per increase)\n"
             << "-m --midi <train.mid>\n"
-            << "-p --progression <> (save progresion)"
-            << std::endl;
+            << "-p --progression <> (save progresion)" << std::endl;
 }
 
 int main(int argc, char** argv) {
@@ -53,51 +52,31 @@ int main(int argc, char** argv) {
       AppUsage();
       return EXIT_NORMAL;
     }
-    if (((arg == "-n") ||
-         (arg == "--size") ||
-         (arg == "-N") ||
-         (arg == "--num-gen") ||
-         (arg == "-a") ||
-         (arg == "--target") ||
-         (arg == "-m") ||
-         (arg == "--midi") ||
-         (arg == "-r") ||
-         (arg == "--instrument-growth-rate") ||
-         (arg == "-s") ||
-         (arg == "--instrument-size") ||
-         (arg == "-M") ||
-         (arg == "--max-instrument-size") ||
-         (arg == "-p") ||
-         (arg == "--progression")) &&
+    if (((arg == "-n") || (arg == "--size") || (arg == "-N") || (arg == "--num-gen") || (arg == "-a") ||
+         (arg == "--target") || (arg == "-m") || (arg == "--midi") || (arg == "-r") ||
+         (arg == "--instrument-growth-rate") || (arg == "-s") || (arg == "--instrument-size") || (arg == "-M") ||
+         (arg == "--max-instrument-size") || (arg == "-p") || (arg == "--progression")) &&
         (i + 1 < argc)) {
       std::string arg2 = argv[++i];
       // Todo check if argument is numeric.
       if ((arg == "-n") || (arg == "--size")) {
-        class_size = (uint16_t) std::stol(arg2);
-      }
-      else if ((arg == "-N") || (arg == "--num-gen")) {
-        training_generations = (uint16_t) std::stoul(arg2);
-      }
-      else if ((arg == "-a") || (arg == "--target")) {
+        class_size = (uint16_t)std::stol(arg2);
+      } else if ((arg == "-N") || (arg == "--num-gen")) {
+        training_generations = (uint16_t)std::stoul(arg2);
+      } else if ((arg == "-a") || (arg == "--target")) {
         audio_file = arg2;
-      }
-      else if ((arg == "-m") || (arg == "--midi")) {
+      } else if ((arg == "-m") || (arg == "--midi")) {
         midi_file = arg2;
-      }
-      else if ((arg == "-r") || (arg == "--instrument-growth-rate")) {
-        instrument_growth = (uint16_t) std::stol(arg2);
-      }
-      else if ((arg == "-s") || (arg == "--instrument-size")) {
-        start_instrument_size = (uint16_t) std::stol(arg2);
-      }
-      else if ((arg == "-M") || (arg == "--max-instrument-size")) {
-        max_instrument_size = (uint16_t) std::stol(arg2);
-      }
-      else if ((arg == "-p") || (arg == "--progression")) {
+      } else if ((arg == "-r") || (arg == "--instrument-growth-rate")) {
+        instrument_growth = (uint16_t)std::stol(arg2);
+      } else if ((arg == "-s") || (arg == "--instrument-size")) {
+        start_instrument_size = (uint16_t)std::stol(arg2);
+      } else if ((arg == "-M") || (arg == "--max-instrument-size")) {
+        max_instrument_size = (uint16_t)std::stol(arg2);
+      } else if ((arg == "-p") || (arg == "--progression")) {
         progression_output = arg2;
       }
-    }
-    else {
+    } else {
       std::cerr << "--destination option requires one argument." << std::endl;
       return EXIT_BAD_ARGS;
     }
@@ -121,29 +100,22 @@ int main(int argc, char** argv) {
   std::cout << "\tClass size: " << class_size << std::endl;
   std::cout << "\tStarting instrument size: " << start_instrument_size << std::endl;
   std::cout << "\tMaximum instrument size: " << max_instrument_size << std::endl;
-  std::cout << "\tInstrument growth rate: "
-            << instrument_growth
-            << " generations per increase"
-            << std::endl;
+  std::cout << "\tInstrument growth rate: " << instrument_growth << " generations per increase" << std::endl;
   if (!progression_output.empty()) {
     std::cout << "\tProgression saved to: " << progression_output << std::endl;
   }
 
   // Read source .wav file into memory.
-  auto wav_rdr = filereader::wave::WaveReaderC (audio_file);
+  auto wav_rdr = filereader::wave::WaveReaderC(audio_file);
   std::vector<int16_t> source_signal = wav_rdr.ToMono16BitWave();
   std::cout << "Reading source audio file... " << std::endl;
 
   // TODO(Brandon): Read MIDI file into memory.
   // Create Trainer class using input parameters.
-  trainer::GeneticInstumentTrainerC trainer = { start_instrument_size,
-                                                class_size,
-                                                source_signal,
-                                                progression_output,
-                                                instrument_growth };
+  trainer::GeneticInstumentTrainerC trainer = {start_instrument_size, class_size, source_signal, progression_output,
+                                               instrument_growth};
   std::cout << "Starting Training... " << std::endl;
   trainer.Start(training_generations);
 
   return EXIT_NORMAL;
 }
-
