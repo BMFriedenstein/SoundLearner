@@ -22,6 +22,7 @@
 #include <complex>
 #include <iostream>
 #include <limits>
+#include <utility>
 
 #include "include/common.h"
 #include "include/filereader.h"
@@ -36,9 +37,9 @@ inline bool cmp_by_name(const std::unique_ptr<InstrumentModelC>& a, const std::u
 namespace trainer {
 InstumentTrainerC::InstumentTrainerC(uint16_t num_starting_occilators,
                                      uint16_t class_size,
-                                     std::vector<int16_t>& src_audio,
-                                     std::string& progress_location)
-    : progress_location(progress_location), src_audio(src_audio) {
+                                     const std::vector<int16_t>& audio,
+                                     const std::string& location)
+    : progress_location(location), src_audio(audio) {
   for (uint16_t i = 0; i < class_size; i++) {
     std::unique_ptr<instrument::InstrumentModelC> new_instrument(
         new instrument::InstrumentModelC(num_starting_occilators, "instrument_" + std::to_string(i)));
@@ -48,8 +49,8 @@ InstumentTrainerC::InstumentTrainerC(uint16_t num_starting_occilators,
 
 GeneticInstumentTrainerC::GeneticInstumentTrainerC(uint16_t num_starting_occilators,
                                                    uint16_t class_size,
-                                                   std::vector<int16_t>& src_audio,
-                                                   std::string& progress_location,
+                                                   const std::vector<int16_t>& src_audio,
+                                                   const std::string& progress_location,
                                                    uint32_t gens_per_addition)
     : trainer::InstumentTrainerC(num_starting_occilators, class_size, src_audio, progress_location),
       gens_per_addition(gens_per_addition) {
@@ -61,9 +62,9 @@ GeneticInstumentTrainerC::GeneticInstumentTrainerC(uint16_t num_starting_occilat
  * in class
  */
 double InstumentTrainerC::GetError(const std::vector<int16_t>& tgt_audio,
-                                   double& corr_score,
-                                   double& mae_score,
-                                   double& diff_score) {
+                                   double* corr_score,
+                                   double* mae_score,
+                                   double* diff_score) {
   // Check the src audio is the right size.
   if (tgt_audio.size() != src_audio.size()) {
     std::cout << "WARN !!! BAD audio size" << std::endl;
@@ -76,20 +77,20 @@ double InstumentTrainerC::GetError(const std::vector<int16_t>& tgt_audio,
     tgt_energy += std::abs(tgt_audio[s]);
   }
   tgt_energy = tgt_energy / src_audio.size();
-  diff_score = std::abs(tgt_energy - src_energy) / static_cast<double>(MAX_AMP);
+  *diff_score = std::abs(tgt_energy - src_energy) / static_cast<double>(MAX_AMP);
   if (src_energy / tgt_energy > 5) {
-    diff_score = 1.0;
-    mae_score = 1.0;
-    corr_score = 1.0;
+    *diff_score = 1.0;
+    *mae_score = 1.0;
+    *corr_score = 1.0;
     return 1.0;
   }
 
   // Get The maen absolute error
-  mae_score = MeanAbsoluteError(tgt_audio, src_energy / tgt_energy);
+  *mae_score = MeanAbsoluteError(tgt_audio, src_energy / tgt_energy);
 
   // Determine cross correlation
-  corr_score = CrossCorrelation(tgt_audio);
-  return corr_score / 2 + diff_score / 2 + mae_score / 400;
+  *corr_score = CrossCorrelation(tgt_audio);
+  return *corr_score / 2 + *diff_score / 2 + *mae_score / 400;
 }
 
 double InstumentTrainerC::CrossCorrelation(const std::vector<int16_t>& tgt_audio) {
@@ -143,9 +144,9 @@ void GeneticInstumentTrainerC::DetermineFitness() {
     // Only re-calculate score if we have not already done so.
     if (!trainees[i]->score_is_cached) {
       bool has_distorted;
-      temp_sample = trainees[i]->GenerateIntSignal(velocity, base_frequency, src_audio.size(), sustain, has_distorted);
+      temp_sample = trainees[i]->GenerateIntSignal(velocity, base_frequency, src_audio.size(), &sustain, &has_distorted);
       trainees[i]->error_score =
-          GetError(temp_sample, trainees[i]->corr_score, trainees[i]->mae_score, trainees[i]->diff_score);
+          GetError(temp_sample, &trainees[i]->corr_score, &trainees[i]->mae_score, &trainees[i]->diff_score);
       trainees[i]->score_is_cached = true;
     }
 

@@ -14,7 +14,6 @@
 #pragma once
 #ifndef INCLUDE_STRUCTURES_H_
 #define INCLUDE_STRUCTURES_H_
-#include "stdint.h"
 
 /** Wav format
       Positions    Sample Value    Description

@@ -12,7 +12,7 @@
  *    Author: Brandon
  */
 
-#include "string_oscillator.h"
+#include "instrument/string_oscillator.h"
 
 #include <algorithm>
 #include <iostream>
@@ -37,7 +37,7 @@ StringOscillatorC::StringOscillatorC(const double& initial_phase,
       amplitude_decay_factor(std::clamp(amplitude_decay, 0.0, 1.0)),
       frequency_decay_factor(std::clamp(frequency_decay, 0.0, 1.0)),
       base_frequency_coupled(is_coupled),
-      rand_eng(std::mt19937(std::random_device{}())) {}
+      rand_eng(std::mt19937(std::random_device {}())) {}
 
 /*
  * Parse information required to generate a signal.
@@ -172,7 +172,7 @@ std::unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(uint8_t severit
                                              amplitude_decay, amplitude_attack, frequency_decay, is_coupled);
 }
 
-static std::mt19937 stat_rand_eng = std::mt19937(std::random_device{}());
+static std::mt19937 stat_rand_eng = std::mt19937(std::random_device {}());
 /*
  * Generates a new completely randomized SoundString oscillator.
  * @parameters: none

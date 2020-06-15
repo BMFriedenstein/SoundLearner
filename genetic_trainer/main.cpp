@@ -19,7 +19,7 @@
 #include "include/common.h"
 #include "include/filereader.h"
 #include "include/filewriter.h"
-#include "trainer.h"
+#include "genetic_trainer/trainer.h"
 
 static void AppUsage() {
   std::cerr << "Usage: \n"

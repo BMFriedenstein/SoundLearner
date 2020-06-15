@@ -22,15 +22,15 @@
 #include <string>
 #include <vector>
 
-#include "common.h"
-#include "structures.h"
+#include "include/common.h"
+#include "include/structures.h"
 
 namespace filereader {
 
 namespace bmp {
 class BMPReaderC {
  public:
-  BMPReaderC(const std::string& a_filename);
+  explicit BMPReaderC(const std::string& a_filename);
   std::string HeaderToString();
 
  private:
@@ -67,7 +67,7 @@ class WaveReaderC {
     wav_file.read(buffer.data(), file_size);
     std::memcpy(&header, buffer.data(), sizeof(WavFileHeader));
     wav_data = std::vector<char>(buffer.begin() + sizeof(WavFileHeader), buffer.end());
-  };
+  }
 
   std::string HeaderToString() {
     std::string ret_string = "{\n";

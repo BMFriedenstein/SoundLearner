@@ -41,42 +41,43 @@ enum WindowTypes {
   HAMMING,
   KAISER_BESSEL,
   EXPONENTIAL
-  // TODO others
 };
 
 template <typename T, std::size_t A>
-static inline void WindowFunction(std::array<T, A>& in_out_data, WindowTypes window_function) {
+static inline void WindowFunction(std::array<T, A>* in_out_data, WindowTypes window_function) {
   static_assert(std::is_arithmetic<T>::value, "Not an arithmetic type");
   switch (window_function) {
     case HANN: {
       constexpr double scale_val = M_PI / A;
       std::size_t i{0};
-      std::transform(in_out_data.begin(), in_out_data.end(), in_out_data.begin(), [&i, &scale_val](auto in_val) {
+      std::transform(in_out_data->begin(), in_out_data->end(), in_out_data->begin(), [&i, &scale_val](auto in_val) {
         (void)in_val;
         return T(std::pow(std::sin(i++ / scale_val), 2));
       });
     } break;
-    case FLAT_TOP:       // TODO
-    case UNIFORM:        // TODO
-    case FORCE:          // TODO
-    case HAMMING:        // TODO
-    case KAISER_BESSEL:  // TODO
-    case EXPONENTIAL:    // TODO
-    case NONE:           // TODO
+
+    // TODO(brandon): Handle other window functions
+    case FLAT_TOP:
+    case UNIFORM:
+    case FORCE:
+    case HAMMING:
+    case KAISER_BESSEL:
+    case EXPONENTIAL:
+    case NONE:
     default:
       break;
   }
 }
 
 template <typename T, std::size_t A>
-static void OneSidedFFT(std::array<T, A>& in_out_data, double freq, WindowTypes window_function = HANN) {
+static void OneSidedFFT(std::array<T, A>* in_out_data, const double& freq, WindowTypes window_function = HANN) {
   static_assert(std::is_arithmetic<T>::value, "Not an arithmetic type");
   constexpr std::size_t in_fft_size = 2 * A;
   WindowFunction<T, A>(in_out_data, window_function);
   std::array<fftw_complex, in_fft_size> in;
   std::array<fftw_complex, in_fft_size> out;
   for (std::size_t i{0}; i < in_fft_size; ++i) {
-    in[i][real] = i < A ? in_out_data[i] : 0;
+    in[i][real] = i < A ? (*in_out_data)[i] : 0;
     in[i][imag] = 0;
   }
 
@@ -87,7 +88,7 @@ static void OneSidedFFT(std::array<T, A>& in_out_data, double freq, WindowTypes 
     const double magnitude{std::abs(std::complex<double>(out[i][real], out[i][imag]))};
     const double power_density{std::pow(magnitude, 2) / (2 * A * freq)};
     const double log_val{10 * std::log10(power_density)};
-    in_out_data[i] = static_cast<T>(log_val);
+    (*in_out_data)[i] = static_cast<T>(log_val);
   }
   fftw_destroy_plan(p);
   fftw_cleanup();
@@ -100,13 +101,13 @@ namespace spectrogram {
 //              std::vector<std::complex<double>> &vec) {
 //   (void)tgt_resolution;
 //   (void)vec;
-//   return std::vector<double>(); // TODO
+//   return std::vector<double>(); // TODO(brandon): transform spectogram to logarithmic
 // }
 
 template <typename Ti, typename To, std::size_t R>
 static std::array<std::array<To, R>, R> CreateSpectrogram(const std::vector<Ti>& source_signal,
-                                                          Ti min_val,
-                                                          Ti max_val) {
+                                                          const Ti& min_val,
+                                                          const Ti& max_val) {
   static_assert(std::is_arithmetic<Ti>::value, "Not an arithmetic type");
   static_assert(std::is_arithmetic<To>::value, "Not an arithmetic type");
   const double slope_m = -1 / (min_val - max_val);
@@ -118,7 +119,7 @@ static std::array<std::array<To, R>, R> CreateSpectrogram(const std::vector<Ti>&
     std::array<Ti, R> frame;
     std::memset(frame.data(), 0, frame.size());
     std::memcpy(frame.data(), &source_signal[source_idx], std::min(frame.size(), source_signal.size() - source_idx));
-    OneSidedFFT<Ti, R>(frame, SAMPLE_RATE);
+    OneSidedFFT<Ti, R>(&frame, SAMPLE_RATE);
 
     // Normalize to values between 0 and 1
     std::transform(window->begin(), window->end(), window->begin(), [&](const auto& val) {

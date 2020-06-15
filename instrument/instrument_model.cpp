@@ -24,7 +24,7 @@
 
 namespace instrument {
 
-InstrumentModelC::InstrumentModelC(std::vector<std::string>& csv_strings, std::string& a_name) {
+InstrumentModelC::InstrumentModelC(const std::vector<std::string>& csv_strings, const  std::string& a_name) {
   error_score = std::numeric_limits<double>::max();
   mae_score = std::numeric_limits<double>::max();
   corr_score = std::numeric_limits<double>::max();
@@ -127,13 +127,13 @@ std::string InstrumentModelC::ToCsv(SortType sort_type) {
 std::vector<double> InstrumentModelC::GenerateSignal(double velocity,
                                                      double frequency,
                                                      uint32_t num_of_samples,
-                                                     std::vector<bool>& sustain) {
+                                                     std::vector<bool>* sustain) {
   std::vector<double> signal(num_of_samples);
 
   // Check that we have a sustain value for each sample.
-  if (sustain.size() != num_of_samples) {
+  if (sustain->size() != num_of_samples) {
     std::cout << "Warning!!! Sustain array not equal to sample length" << std::endl;
-    sustain.resize(num_of_samples);
+    sustain->resize(num_of_samples);
   }
 
   // Initiate each of the strings.
@@ -146,7 +146,7 @@ std::vector<double> InstrumentModelC::GenerateSignal(double velocity,
     double sample_val = 0;
 
     for (size_t j = 0; j < sound_strings.size(); j++) {
-      sample_val += sound_strings[j]->NextSample(sustain[i]);
+      sample_val += sound_strings[j]->NextSample((*sustain)[i]);
     }
     signal[i] = sample_val;
   }
@@ -164,16 +164,16 @@ std::vector<double> InstrumentModelC::GenerateSignal(double velocity,
 std::vector<int16_t> InstrumentModelC::GenerateIntSignal(double velocity,
                                                          double frequency,
                                                          uint32_t num_of_samples,
-                                                         std::vector<bool>& sustain,
-                                                         bool& has_distorted_out,
+                                                         std::vector<bool>* sustain,
+                                                         bool* has_distorted_out,
                                                          bool return_on_distort) {
   std::vector<int16_t> signal(num_of_samples);
   // Check that we have a sustain value for each sample.
-  if (sustain.size() != num_of_samples) {
+  if (sustain->size() != num_of_samples) {
     std::cout << "Warning!!! Sustain array not equal to sample length" << std::endl;
-    sustain.resize(num_of_samples);
+    sustain->resize(num_of_samples);
   }
-  has_distorted_out = false;
+  *has_distorted_out = false;
   // Initiate each of the strings.
   for (size_t i = 0; i < sound_strings.size(); i++) {
     sound_strings[i]->PrimeString(frequency, velocity);
@@ -183,16 +183,16 @@ std::vector<int16_t> InstrumentModelC::GenerateIntSignal(double velocity,
   for (uint32_t i = 0; i < num_of_samples; i++) {
     double sample_val = 0;
     for (size_t j = 0; j < sound_strings.size(); j++) {
-      sample_val += MAX_AMP * sound_strings[j]->NextSample(sustain[i]);
+      sample_val += MAX_AMP * sound_strings[j]->NextSample((*sustain)[i]);
     }
 
     // Convert to int32.
     if (sample_val > MAX_AMP) {
       sample_val = MAX_AMP;
-      has_distorted_out = true;
+      *has_distorted_out = true;
     } else if (sample_val < MIN_AMP) {
       sample_val = MIN_AMP;
-      has_distorted_out = true;
+      *has_distorted_out = true;
     }
     if (return_on_distort && has_distorted_out) {
       return signal;

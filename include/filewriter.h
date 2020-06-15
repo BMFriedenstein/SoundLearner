@@ -25,8 +25,8 @@
 #include <string>
 #include <vector>
 
-#include "common.h"
-#include "structures.h"
+#include "include/common.h"
+#include "include/structures.h"
 
 namespace filewriter {
 namespace text {
@@ -54,10 +54,10 @@ namespace bmp {
 template <std::size_t W, std::size_t H>
 class BMPWriterC {
  public:
-  BMPWriterC(const std::array<std::array<uint32_t, W>, H>& a_data) {
+  explicit BMPWriterC(const std::array<std::array<uint32_t, W>, H>& a_data) {
     for (size_t i = H - 1; i > 0; --i) {
       for (size_t j = W - 1; j > 0; --j) {
-        img_data[i * W + j] = ValToColor(double(a_data[j][i]));
+        img_data[i * W + j] = ValToColor(static_cast<double>(a_data[j][i]));
       }
     }
     fileheader.offset_data = sizeof(fileheader) + sizeof(infoheader);
@@ -69,10 +69,10 @@ class BMPWriterC {
     infoheader.bit_count = 32;
   }
 
-  BMPWriterC(const std::array<std::array<double, W>, H>& a_data) {
+  explicit BMPWriterC(const std::array<std::array<double, W>, H>& a_data) {
     for (size_t i = W - 1; i > 0; --i) {
       for (size_t j = H - 1; j > 0; --j) {
-        img_data[i * H + j] = ValToColor(double(a_data[j][i]));
+        img_data[i * H + j] = ValToColor(static_cast<double>(a_data[j][i]));
       }
     }
     fileheader.offset_data = sizeof(fileheader.offset_data) + sizeof(infoheader);

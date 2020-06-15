@@ -16,7 +16,6 @@
 #define DATASET_BUILDER_H_
 #include <algorithm>
 #include <functional>
-#include <future>
 #include <iostream>
 #include <memory>
 #include <random>
@@ -40,13 +39,13 @@ class DataBuilder {
   uint32_t starting_index;
 
  public:
-  void DataBuildJob(const double& velocity, const double& freq, uint32_t& index);
+  void DataBuildJob(const double& velocity, const double& freq, uint32_t* index);
 
   DataBuilder(std::size_t sample_time_secs,
               uint32_t coupled_oscilators,
               uint32_t uncoupled_oscilators = 0,
               uint32_t starting_index = 0,
-              uint32_t rand_seed = std::random_device{}())
+              uint32_t rand_seed = std::random_device {}())
       : rand_eng(rand_seed),
         num_samples(SAMPLE_RATE * sample_time_secs),
         coupled_oscilators(coupled_oscilators),

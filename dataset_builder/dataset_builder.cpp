@@ -76,17 +76,17 @@ int main(int argc, char** argv) {
 
   std::cout << "Building dataset...";
   std::cout << uncoupled_oscilators << std::endl;
-  const double note_played_freq = 1000;  //  C3 and C5
-  const double velocity = 0.1;           // TODO for now+ 0.25*real_distr(eng)
+  const double note_played_freq = 1000;
+  const double velocity = 0.1;
   auto builder = DataBuilder(sample_time, coupled_oscilators, uncoupled_oscilators, starting_point);
   for (uint32_t i = 0; i < dataset_size;) {
-    builder.DataBuildJob(note_played_freq, velocity, i);
+    builder.DataBuildJob(note_played_freq, velocity, &i);
   }
 
   return EXIT_NORMAL;
 }
 
-void DataBuilder::DataBuildJob(const double& velocity, const double& freq, uint32_t& index) {
+void DataBuilder::DataBuildJob(const double& velocity, const double& freq, uint32_t* index) {
   std::uniform_real_distribution<float> bool_distr;
   std::vector<bool> sustain(num_samples);
   std::string sustain_str = "";
@@ -94,10 +94,10 @@ void DataBuilder::DataBuildJob(const double& velocity, const double& freq, uint3
     sustain[i] = i && sustain[i] ? bool_distr(rand_eng) > 0.2 : bool_distr(rand_eng) > 0.8;
     sustain_str += std::to_string(sustain[i]) + (i < (sustain.size() - 1) ? "," : "");
   }
-  instrument::InstrumentModelC rand_instrument(coupled_oscilators, uncoupled_oscilators, std::to_string(index));
+  instrument::InstrumentModelC rand_instrument(coupled_oscilators, uncoupled_oscilators, std::to_string(*index));
   bool sample_has_distorted = false;
   std::vector<int16_t> sample_a =
-      rand_instrument.GenerateIntSignal(velocity, freq, num_samples, sustain, sample_has_distorted);
+      rand_instrument.GenerateIntSignal(velocity, freq, num_samples, &sustain, &sample_has_distorted);
 
   // Skip generated samples that distort.
   if (sample_has_distorted) {
@@ -105,7 +105,7 @@ void DataBuilder::DataBuildJob(const double& velocity, const double& freq, uint3
   }
 
   // Write out the sample to a mono .wav file
-  const auto file_name = std::string(data_output) + std::to_string(starting_index + index);
+  const auto file_name = std::string(data_output) + std::to_string(starting_index + *index);
   filewriter::wave::MonoWaveWriterC wave_writer(sample_a);
   wave_writer.Write(file_name + ".wav");
 
@@ -122,5 +122,5 @@ void DataBuilder::DataBuildJob(const double& velocity, const double& freq, uint3
   instrument_meta += sustain_str;
   filewriter::text::WriteFile(file_name + ".meta", instrument_meta);
   filewriter::text::WriteFile(file_name + ".data", instrument_data);
-  index++;
+  (*index)++;
 }

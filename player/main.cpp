@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
       if ((arg == "-f") || (arg == "--filename")) {
         filename = arg2;
       } else if ((arg == "-n") || (arg == "--note")) {
-        note_played = (double)std::stof(arg2);
+        note_played = std::stof(arg2);
       } else if ((arg == "-v") || (arg == "--velocity")) {
         velocity = ((uint8_t)std::stoi(arg2)) / 100.0;
       } else if ((arg == "-l") || (arg == "--length")) {
@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
   std::cout << instru_model.ToJson() << std::endl;
   bool distorted;
   std::vector<int16_t> sample =
-      instru_model.GenerateIntSignal(velocity, note_played, num_samples, blank_sus, distorted);
+      instru_model.GenerateIntSignal(velocity, note_played, num_samples, &blank_sus, &distorted);
   filewriter::wave::MonoWaveWriterC wave_writer(sample);
   wave_writer.Write(filename + ".wav");
 }
