@@ -1,7 +1,9 @@
 # SoundLearner #
 *A machine learning approach to modeling musical instruments or sounds.
 
- This projects intends to create an instrument model where sound is decomposed into individual sound waves or *oscilations* that follow a basic amplitude and frequency envelope. Furthermore, using a convolutional neural network, unheard instrument recordings can be deconstruct into the instruement model. Later the instruments model can be used in a player application to accruately recreate the original instrument.
+This C++17 and python Tensorflow project intends to create an model for a musical instrument, where sound is deconstructed into individual sine waves that follow a basic amplitude and frequency envelope. 
+Furthermore, using a convolutional neural network, unheard instrument recordings can then be mapped  to parameters for the instrument model. Later the instruments model can be used in a player application to accurately recreate the original instrument for new MIDI inputs.
+
 ![SoundLearner](SoundLearner.jpg)
 - - - -
 
