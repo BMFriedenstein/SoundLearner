@@ -53,9 +53,8 @@ GeneticInstumentTrainerC::GeneticInstumentTrainerC(uint16_t num_starting_occilat
                                                    const std::string& progress_location,
                                                    uint32_t gens_per_addition)
     : trainer::InstumentTrainerC(num_starting_occilators, class_size, src_audio, progress_location),
-      gens_per_addition(gens_per_addition) {
-  std::vector<bool> sustain = std::vector<bool>(src_audio.size(), true);
-}
+      gens_per_addition(gens_per_addition),
+      sustain(src_audio.size(), true) {}
 
 /*
  * Calculate the average mean error for the generated signals of each trainee instrument.

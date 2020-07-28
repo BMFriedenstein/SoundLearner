@@ -47,13 +47,19 @@ StringOscillatorC::StringOscillatorC(const double& initial_phase,
  */
 void StringOscillatorC::PrimeString(const double& freq, const double& velocity) {
   const double amplitude_decay(k_max_amp_decay_rate +
-                               (k_min_amp_decay_rate - k_max_amp_decay_rate) * amplitude_decay_factor);
-  const double frequency_decay(k_max_freq_decay_rate + (k_min_freq_decay_rate - k_max_freq_decay_rate) * frequency_decay_factor);
-  const double sustain_decay(k_max_freq_decay_rate + (k_min_freq_decay_rate - k_max_freq_decay_rate) * non_sustain_factor);
-  const double amplitude_factor(k_min_amp_cutoff + (k_max_amp_cutoff - k_min_amp_cutoff) * start_amplitude_factor);
-  const double max_freq_factor(base_frequency_coupled ? k_max_coupled_freq_factor : k_max_uncoupled_freq_factor);
-  const double frequency_factor(k_min_freq_factor + (max_freq_factor - k_min_freq_factor) * start_frequency_factor);
-  const double amplitude_attack(k_min_amp_attack_rate + (k_max_amp_attack_rate - k_min_amp_attack_rate) * amplitude_attack_factor);
+                              (k_min_amp_decay_rate - k_max_amp_decay_rate) * amplitude_decay_factor);
+  const double frequency_decay(k_max_freq_decay_rate +
+                              (k_min_freq_decay_rate - k_max_freq_decay_rate) * frequency_decay_factor);
+  const double sustain_decay(k_max_freq_decay_rate +
+                            (k_min_freq_decay_rate - k_max_freq_decay_rate) * non_sustain_factor);
+  const double amplitude_factor(k_min_amp_cutoff +
+                               (k_max_amp_cutoff - k_min_amp_cutoff) * start_amplitude_factor);
+  const double max_freq_factor(base_frequency_coupled ?
+                               k_max_coupled_freq_factor : k_max_uncoupled_freq_factor);
+  const double frequency_factor(k_min_freq_factor +
+                               (max_freq_factor - k_min_freq_factor) * start_frequency_factor);
+  const double amplitude_attack(k_min_amp_attack_rate +
+                              (k_max_amp_attack_rate - k_min_amp_attack_rate) * amplitude_attack_factor);
 
   amplitude_state = 0;
   sample_pos = 0;
@@ -159,17 +165,24 @@ std::string StringOscillatorC::ToCsv() {
 std::unique_ptr<StringOscillatorC> StringOscillatorC::TuneString(uint8_t severity) {
   const double sev_factor = static_cast<double>(severity) / 255.0;
   std::uniform_real_distribution<> real_distr(-sev_factor, sev_factor);
-  const double phase = phase_factor + (real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0;
-  const double start_frequency_factor = start_frequency_factor + (real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0;
-  const double amplitude_factor = start_amplitude_factor + (real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0;
-  const double non_sustain_factor = non_sustain_factor + (real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0;
-  const double amplitude_decay = amplitude_decay_factor + (real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0;
-  const double amplitude_attack = amplitude_attack_factor + (real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0;
-  const double frequency_decay = frequency_decay_factor + (real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0;
+  const double phase = phase_factor +
+                       ((real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0);
+  const double start_frequency = start_frequency_factor +
+                                 ((real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0);
+  const double amplitude = start_amplitude_factor +
+                           ((real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0);
+  const double non_sustain = non_sustain_factor +
+                             ((real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0);
+  const double amplitude_decay = amplitude_decay_factor +
+                                 ((real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0);
+  const double amplitude_attack = amplitude_attack_factor +
+                                  ((real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0);
+  const double frequency_decay = frequency_decay_factor +
+                                 ((real_distr(rand_eng) > 0) ? real_distr(rand_eng) : 0);
   const bool is_coupled = (real_distr(rand_eng) < 0.95);
 
-  return std::make_unique<StringOscillatorC>(phase, start_frequency_factor, amplitude_factor, non_sustain_factor,
-                                             amplitude_decay, amplitude_attack, frequency_decay, is_coupled);
+  return std::make_unique<StringOscillatorC>(phase, start_frequency, amplitude, non_sustain, amplitude_decay,
+                                             amplitude_attack, frequency_decay, is_coupled);
 }
 
 static std::mt19937 stat_rand_eng = std::mt19937(std::random_device {}());
