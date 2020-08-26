@@ -23,7 +23,7 @@
 #include "instrument/string_oscillator.h"
 
 namespace instrument {
-enum SortType { none, amplitude, frequency };
+enum class SortType { none, amplitude, frequency };
 class InstrumentModelC {
  public:
   static constexpr uint16_t k_max_strings = 1000;
@@ -41,17 +41,15 @@ class InstrumentModelC {
   void AddTunedString(const oscillator::StringOscillatorC&& a_tuned_string);
   void AddUntunedString(bool is_uncoupled = false);
 
-  std::string ToCsv(SortType sort_type = none);
-  std::string ToJson(SortType sort_type = none);
+  std::string ToCsv(SortType sort_type = SortType::none);
+  std::string ToJson(SortType sort_type = SortType::none);
   std::vector<double> GenerateSignal(double velocity,
                                      double frequency,
-                                     uint32_t num_of_samples,
-                                     std::vector<bool>* sustain);
+                                     uint32_t num_of_samples);
   std::vector<int16_t> GenerateIntSignal(double velocity,
                                          double frequency,
                                          uint32_t num_of_samples,
-                                         std::vector<bool>* sustain,
-                                         bool* has_distorted_out,
+                                         bool& has_distorted_out,
                                          bool return_on_distort = true);
 
   std::unique_ptr<InstrumentModelC> TuneInstrument(const uint8_t amount);
@@ -61,7 +59,6 @@ class InstrumentModelC {
 
   // TODO(BRANDON) for player application:
   // void PrimeNotePlayed(double frequency, double velocity);
-  // double GenerateNextSample(bool sustain);
  private:
   std::vector<std::unique_ptr<oscillator::StringOscillatorC>> sound_strings;
   std::string name;

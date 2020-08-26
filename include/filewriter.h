@@ -57,7 +57,7 @@ class BMPWriterC {
   explicit BMPWriterC(const std::array<std::array<uint32_t, W>, H>& a_data) {
     for (size_t i = H - 1; i > 0; --i) {
       for (size_t j = W - 1; j > 0; --j) {
-        img_data[i * W + j] = ValToColor(static_cast<double>(a_data[j][i]));
+        img_data[i * W + j] = ValToColor(1.0-static_cast<double>(a_data[j][i]) / std::numeric_limits<uint32_t>::max());
       }
     }
     fileheader.offset_data = sizeof(fileheader) + sizeof(infoheader);
@@ -72,7 +72,7 @@ class BMPWriterC {
   explicit BMPWriterC(const std::array<std::array<double, W>, H>& a_data) {
     for (size_t i = W - 1; i > 0; --i) {
       for (size_t j = H - 1; j > 0; --j) {
-        img_data[i * H + j] = ValToColor(static_cast<double>(a_data[j][i]));
+        img_data[i * H + j] = ValToColor(1.0-a_data[j][i]);
       }
     }
     fileheader.offset_data = sizeof(fileheader.offset_data) + sizeof(infoheader);
@@ -101,12 +101,12 @@ class BMPWriterC {
   }
 
  private:
-  enum ColorScaleType { GREYSCALE = 0 };
-  uint32_t ValToColor(double val, ColorScaleType type = GREYSCALE) {
+  enum class ColorScaleType { GREYSCALE = 0 };
+  uint32_t ValToColor(double val, ColorScaleType type = ColorScaleType::GREYSCALE) {
     const uint8_t val_u = std::clamp<uint8_t>(static_cast<uint8_t>(std::round(0xff * val)), 0, 0xff);
 
     switch (type) {
-      case GREYSCALE:
+      case ColorScaleType::GREYSCALE:
         RGBA val_rgba;
         val_rgba.rgba_st.A = 0xff;
         val_rgba.rgba_st.R = val_u;

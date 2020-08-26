@@ -43,13 +43,12 @@ class StringOscillatorC {
   StringOscillatorC(const double& initial_phase,
                     const double& frequency_factor,
                     const double& amplitude_factor,
-                    const double& non_sustain_factor,
                     const double& amplitude_decay,
                     const double& amplitude_attack,
                     const double& frequency_decay,
                     bool is_coupled);
   void PrimeString(const double& frequency, const double& velocity);
-  double NextSample(bool sustain);
+  double NextSample();
   void AmendGain(const double& factor);
   std::string ToCsv();
   std::string ToJson();
@@ -69,15 +68,13 @@ class StringOscillatorC {
   double start_amplitude_factor;
 
   // Signal modification definition.
-  double non_sustain_factor;
   double amplitude_attack_factor;
   double amplitude_decay_factor;
   double frequency_decay_factor;
   bool base_frequency_coupled;
 
   // Signal State.
-  double normal_amplitude_decay_rate;
-  double sutain_amplitude_decay_rate;
+  double amplitude_decay_rate;
   double frequency_decay_rate;
   double amplitude_attack_delta;
   double max_amplitude;

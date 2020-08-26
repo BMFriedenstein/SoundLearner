@@ -53,8 +53,7 @@ GeneticInstumentTrainerC::GeneticInstumentTrainerC(uint16_t num_starting_occilat
                                                    const std::string& progress_location,
                                                    uint32_t gens_per_addition)
     : trainer::InstumentTrainerC(num_starting_occilators, class_size, src_audio, progress_location),
-      gens_per_addition(gens_per_addition),
-      sustain(src_audio.size(), true) {}
+      gens_per_addition(gens_per_addition) {}
 
 /*
  * Calculate the average mean error for the generated signals of each trainee instrument.
@@ -134,16 +133,13 @@ void GeneticInstumentTrainerC::DetermineFitness() {
   std::string best_instrument_json("");
   uint32_t best_index = 0;
 
-  // TODO(Brandon): Replace with midi.
-  sustain = std::vector<bool>(src_audio.size(), true);
-
   // Determine error score for each instrument for class.
   std::vector<int16_t> temp_sample(src_audio.size());
   for (size_t i = 0; i < trainees.size(); i++) {
     // Only re-calculate score if we have not already done so.
     if (!trainees[i]->score_is_cached) {
       bool has_distorted;
-      temp_sample = trainees[i]->GenerateIntSignal(velocity, base_frequency, src_audio.size(), &sustain, &has_distorted);
+      temp_sample = trainees[i]->GenerateIntSignal(velocity, base_frequency, src_audio.size(), has_distorted);
       trainees[i]->error_score =
           GetError(temp_sample, &trainees[i]->corr_score, &trainees[i]->mae_score, &trainees[i]->diff_score);
       trainees[i]->score_is_cached = true;

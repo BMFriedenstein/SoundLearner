@@ -31,8 +31,10 @@
 namespace fft {
 static constexpr uint8_t real = 0;
 static constexpr uint8_t imag = 1;
+static double fft_spectogram_min = -10.0;
+static double fft_spectogram_max = 1000.0;
 
-enum WindowTypes {
+enum class WindowTypes {
   NONE,
   HANN,
   FLAT_TOP,
@@ -47,30 +49,29 @@ template <typename T, std::size_t A>
 static inline void WindowFunction(std::array<T, A>* in_out_data, WindowTypes window_function) {
   static_assert(std::is_arithmetic<T>::value, "Not an arithmetic type");
   switch (window_function) {
-    case HANN: {
+    case WindowTypes::HANN: {
       constexpr double scale_val = M_PI / A;
       std::size_t i{0};
       std::transform(in_out_data->begin(), in_out_data->end(), in_out_data->begin(), [&i, &scale_val](auto in_val) {
-        (void)in_val;
-        return T(std::pow(std::sin(i++ / scale_val), 2));
+        return T(in_val*std::pow(std::sin(i++ / scale_val), 2));
       });
     } break;
 
     // TODO(brandon): Handle other window functions
-    case FLAT_TOP:
-    case UNIFORM:
-    case FORCE:
-    case HAMMING:
-    case KAISER_BESSEL:
-    case EXPONENTIAL:
-    case NONE:
+    case WindowTypes::FLAT_TOP:
+    case WindowTypes::UNIFORM:
+    case WindowTypes::FORCE:
+    case WindowTypes::HAMMING:
+    case WindowTypes::KAISER_BESSEL:
+    case WindowTypes::EXPONENTIAL:
+    case WindowTypes::NONE:
     default:
       break;
   }
 }
 
 template <typename T, std::size_t A>
-static void OneSidedFFT(std::array<T, A>* in_out_data, const double& freq, WindowTypes window_function = HANN) {
+static void OneSidedFFT(std::array<T, A>* in_out_data, const double& freq, WindowTypes window_function = WindowTypes::NONE) {
   static_assert(std::is_arithmetic<T>::value, "Not an arithmetic type");
   constexpr std::size_t in_fft_size = 2 * A;
   WindowFunction<T, A>(in_out_data, window_function);
@@ -83,12 +84,12 @@ static void OneSidedFFT(std::array<T, A>* in_out_data, const double& freq, Windo
 
   fftw_plan p = fftw_plan_dft_1d(static_cast<int>(in_fft_size), in.data(), out.data(), FFTW_FORWARD, FFTW_ESTIMATE);
   fftw_execute(p);
-
   for (std::size_t i = 0; i < A; ++i) {
     const double magnitude{std::abs(std::complex<double>(out[i][real], out[i][imag]))};
     const double power_density{std::pow(magnitude, 2) / (2 * A * freq)};
     const double log_val{10 * std::log10(power_density)};
     (*in_out_data)[i] = static_cast<T>(log_val);
+
   }
   fftw_destroy_plan(p);
   fftw_cleanup();
@@ -105,13 +106,11 @@ namespace spectrogram {
 // }
 
 template <typename Ti, typename To, std::size_t R>
-static std::array<std::array<To, R>, R> CreateSpectrogram(const std::vector<Ti>& source_signal,
-                                                          const Ti& min_val,
-                                                          const Ti& max_val) {
+static std::array<std::array<To, R>, R> CreateSpectrogram(const std::vector<Ti>& source_signal) {
   static_assert(std::is_arithmetic<Ti>::value, "Not an arithmetic type");
   static_assert(std::is_arithmetic<To>::value, "Not an arithmetic type");
-  const double slope_m = -1 / (min_val - max_val);
-  auto return_spectogram = std::array<std::array<To, R>, R>();
+  const double slope_m = static_cast<double>(std::numeric_limits<To>::max()) / (fft_spectogram_min - fft_spectogram_max);
+  std::array<std::array<To, R>, R> return_spectogram = {{0}};
   const std::size_t increment_size = source_signal.size() / R;
 
   std::size_t source_idx = 0;
@@ -122,8 +121,8 @@ static std::array<std::array<To, R>, R> CreateSpectrogram(const std::vector<Ti>&
     OneSidedFFT<Ti, R>(&frame, SAMPLE_RATE);
 
     // Normalize to values between 0 and 1
-    std::transform(window->begin(), window->end(), window->begin(), [&](const auto& val) {
-      return static_cast<To>(std::clamp<double>(val * slope_m, min_val, max_val));
+    std::transform(frame.begin(), frame.end(), window->begin(), [&](const auto& val) {
+      return static_cast<To>(std::clamp<double>((val * slope_m), 0, std::numeric_limits<To>::max()));
     });
     source_idx += increment_size;
   }

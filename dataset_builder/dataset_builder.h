@@ -29,8 +29,6 @@ class DataBuilder {
  private:
   static constexpr char data_output[] = "data";
   static constexpr std::size_t img_resolution = 512U;
-  static constexpr double fft_spectogram_min = -40.0;
-  static constexpr double fft_spectogram_max = 00;
   std::mt19937 rand_eng;
   // Define the range.
   uint32_t num_samples;

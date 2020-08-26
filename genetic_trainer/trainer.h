@@ -56,7 +56,6 @@ class GeneticInstumentTrainerC : public InstumentTrainerC {
 
   // TODO(Brandon): replace with MIDI parser.
   double base_frequency = 440.0;
-  std::vector<bool> sustain;
   double velocity = 1.0;
 
   void GeneticAlgorithm();

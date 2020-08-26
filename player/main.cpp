@@ -80,12 +80,10 @@ int main(int argc, char** argv) {
   }
 
   std::cout << "\nmodel:\n" << std::endl;
-  std::vector<bool> blank_sus(num_samples);
   instrument::InstrumentModelC instru_model(instrument_strings, filename);
   std::cout << instru_model.ToJson() << std::endl;
-  bool distorted;
-  std::vector<int16_t> sample =
-      instru_model.GenerateIntSignal(velocity, note_played, num_samples, &blank_sus, &distorted);
+  bool has_distorted;
+  std::vector<int16_t> sample = instru_model.GenerateIntSignal(velocity, note_played, num_samples, has_distorted);
   filewriter::wave::MonoWaveWriterC wave_writer(sample);
   wave_writer.Write(filename + ".wav");
 }

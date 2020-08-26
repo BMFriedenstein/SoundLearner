@@ -88,16 +88,10 @@ int main(int argc, char** argv) {
 
 void DataBuilder::DataBuildJob(const double& velocity, const double& freq, uint32_t* index) {
   std::uniform_real_distribution<float> bool_distr;
-  std::vector<bool> sustain(num_samples);
-  std::string sustain_str = "";
-  for (std::size_t i{0}; i < sustain.size(); i++) {
-    sustain[i] = i && sustain[i] ? bool_distr(rand_eng) > 0.2 : bool_distr(rand_eng) > 0.8;
-    sustain_str += std::to_string(sustain[i]) + (i < (sustain.size() - 1) ? "," : "");
-  }
   instrument::InstrumentModelC rand_instrument(coupled_oscilators, uncoupled_oscilators, std::to_string(*index));
   bool sample_has_distorted = false;
   std::vector<int16_t> sample_a =
-      rand_instrument.GenerateIntSignal(velocity, freq, num_samples, &sustain, &sample_has_distorted);
+      rand_instrument.GenerateIntSignal(velocity, freq, num_samples, sample_has_distorted);
 
   // Skip generated samples that distort.
   if (sample_has_distorted) {
@@ -110,16 +104,14 @@ void DataBuilder::DataBuildJob(const double& velocity, const double& freq, uint3
   wave_writer.Write(file_name + ".wav");
 
   // Write out the spectrogram to a monochrome .bmp file
-  const auto spectogram = fft::spectrogram::CreateSpectrogram<int16_t, uint32_t, img_resolution>(
-      sample_a, fft_spectogram_min, fft_spectogram_max);
+  const auto spectogram = fft::spectrogram::CreateSpectrogram<int16_t, uint32_t, img_resolution>(sample_a);
   filewriter::bmp::BMPWriterC<img_resolution, img_resolution> bmp_writer(spectogram);
   bmp_writer.Write(file_name + ".bmp");
 
   // Write out meta and data files
-  std::string instrument_data = rand_instrument.ToCsv(instrument::frequency);
+  std::string instrument_data = rand_instrument.ToCsv(instrument::SortType::frequency);
   std::string instrument_meta = std::to_string(freq) + "\n";
   instrument_meta += std::to_string(velocity) + "\n";
-  instrument_meta += sustain_str;
   filewriter::text::WriteFile(file_name + ".meta", instrument_meta);
   filewriter::text::WriteFile(file_name + ".data", instrument_data);
   (*index)++;
