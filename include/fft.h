@@ -29,10 +29,10 @@
 #include "include/common.h"
 
 namespace fft {
-static constexpr uint8_t real = 0;
-static constexpr uint8_t imag = 1;
-static double fft_spectogram_min = -10.0;
-static double fft_spectogram_max = 1000.0;
+static inline constexpr uint8_t real = 0;
+static inline constexpr uint8_t imag = 1;
+static double fft_spectogram_min = -500.0;
+static double fft_spectogram_max = 0.0;
 
 enum class WindowTypes {
   NONE,
@@ -71,7 +71,7 @@ static inline void WindowFunction(std::array<T, A>* in_out_data, WindowTypes win
 }
 
 template <typename T, std::size_t A>
-static void OneSidedFFT(std::array<T, A>* in_out_data, const double& freq, WindowTypes window_function = WindowTypes::NONE) {
+static inline void OneSidedFFT(std::array<T, A>* in_out_data, double freq, WindowTypes window_function = WindowTypes::NONE) {
   static_assert(std::is_arithmetic<T>::value, "Not an arithmetic type");
   constexpr std::size_t in_fft_size = 2 * A;
   WindowFunction<T, A>(in_out_data, window_function);
@@ -89,7 +89,6 @@ static void OneSidedFFT(std::array<T, A>* in_out_data, const double& freq, Windo
     const double power_density{std::pow(magnitude, 2) / (2 * A * freq)};
     const double log_val{10 * std::log10(power_density)};
     (*in_out_data)[i] = static_cast<T>(log_val);
-
   }
   fftw_destroy_plan(p);
   fftw_cleanup();
@@ -97,37 +96,63 @@ static void OneSidedFFT(std::array<T, A>* in_out_data, const double& freq, Windo
 
 namespace spectrogram {
 
-// static std::vector<double>
-// LogTransform(const uint32_t tgt_resolution,
-//              std::vector<std::complex<double>> &vec) {
-//   (void)tgt_resolution;
-//   (void)vec;
-//   return std::vector<double>(); // TODO(brandon): transform spectogram to logarithmic
-// }
-
-template <typename Ti, typename To, std::size_t R>
-static std::array<std::array<To, R>, R> CreateSpectrogram(const std::vector<Ti>& source_signal) {
+template <typename Ti, typename To, std::size_t X, std::size_t Y=X>
+static inline std::array<std::array<To, Y>, X> CreateSpectrogram(const std::vector<Ti>& source_signal) {
   static_assert(std::is_arithmetic<Ti>::value, "Not an arithmetic type");
   static_assert(std::is_arithmetic<To>::value, "Not an arithmetic type");
-  const double slope_m = static_cast<double>(std::numeric_limits<To>::max()) / (fft_spectogram_min - fft_spectogram_max);
-  std::array<std::array<To, R>, R> return_spectogram = {{0}};
-  const std::size_t increment_size = source_signal.size() / R;
+  const To max = std::is_floating_point<To>::value ? To(1.0) : std::numeric_limits<To>::max();
+  const double slope_m = static_cast<double>(max / (fft_spectogram_min - fft_spectogram_max));
 
+  std::array<std::array<To, Y>, X> return_spectogram = {{0}};
+  const std::size_t increment_size = source_signal.size() / X;
   std::size_t source_idx = 0;
   for (auto window = return_spectogram.begin(); window != return_spectogram.end(); ++window) {
-    std::array<Ti, R> frame;
+    std::array<Ti, Y> frame;
     std::memset(frame.data(), 0, frame.size());
     std::memcpy(frame.data(), &source_signal[source_idx], std::min(frame.size(), source_signal.size() - source_idx));
-    OneSidedFFT<Ti, R>(&frame, SAMPLE_RATE);
+    OneSidedFFT<Ti, Y>(&frame, SAMPLE_RATE);
 
     // Normalize to values between 0 and 1
     std::transform(frame.begin(), frame.end(), window->begin(), [&](const auto& val) {
-      return static_cast<To>(std::clamp<double>((val * slope_m), 0, std::numeric_limits<To>::max()));
+      return static_cast<To>(std::clamp<double>(val * slope_m, 0.0, max));
     });
     source_idx += increment_size;
   }
   return return_spectogram;
 }
+
+template <typename Ti, typename To, std::size_t R, std::size_t M=R>
+static inline std::array<std::array<To, M>, M> CreateMelSpectrogram(const std::vector<Ti>& source_signal) {
+  static_assert(std::is_arithmetic<Ti>::value, "Not an arithmetic type");
+  static_assert(std::is_arithmetic<To>::value, "Not an arithmetic type");
+  const double max = std::is_floating_point<To>::value ? 1.0 : static_cast<double>(std::numeric_limits<To>::max());
+  const double slope_m = max / (fft_spectogram_min - fft_spectogram_max);
+  auto normal_spectogram = CreateSpectrogram<Ti, Ti, M, R>(source_signal);
+
+  // Mel Transform
+  const double log_max = std::log2(44100.0);
+  const double log_increments = log_max/M;
+  std::array<std::array<To, M>, M> mel_spectogram{{0}};
+  for (std::size_t x = 0; x < normal_spectogram.size(); ++x) {
+
+    std::array<std::vector<Ti>, M> log_bins{};
+    for (std::size_t y = 0; y < R; ++y) {
+      std::size_t mapped_y = y > 0 ? static_cast<std::size_t>(std::round(std::log2(y) / log_increments)) : 0;
+      mapped_y = std::clamp(mapped_y, std::size_t(0), M - 1);
+      log_bins[mapped_y].push_back(normal_spectogram[x][y]);
+    }
+    for (std::size_t y = 0; y < M; ++y) {
+      if (log_bins[y].empty()) {
+        mel_spectogram[x][y] = 0;
+      } else {
+        const auto sum_val = std::accumulate(log_bins[y].begin(), log_bins[y].end(), 0);
+        mel_spectogram[x][y] = static_cast<To>(std::clamp(slope_m * sum_val / log_bins[y].size(), 0.0, max));
+      }
+    }
+  }
+  return mel_spectogram;
+}
+
 }  // namespace spectrogram
 }  // namespace fft
 #endif /* INCLUDE_FFT_H_ */

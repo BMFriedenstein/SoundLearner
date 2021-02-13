@@ -38,25 +38,25 @@ constexpr double k_max_coupled_freq_factor = 10.0;                  // 10
 constexpr double k_max_uncoupled_freq_factor = 20000.0;             // 20000
 constexpr double k_min_freq_factor = 20 / 20000;                    // 0.001
 
-class StringOscillatorC {
+class StringOccilator {
  public:
-  StringOscillatorC(const double& initial_phase,
-                    const double& frequency_factor,
-                    const double& amplitude_factor,
-                    const double& amplitude_decay,
-                    const double& amplitude_attack,
-                    const double& frequency_decay,
-                    bool is_coupled);
-  void PrimeString(const double& frequency, const double& velocity);
+  StringOccilator(double initial_phase,
+                  double frequency_factor,
+                  double amplitude_factor,
+                  double amplitude_decay,
+                  double amplitude_attack,
+                  double frequency_decay,
+                  bool is_coupled);
+  void PrimeString(double frequency, double velocity);
   double NextSample();
-  void AmendGain(const double& factor);
+  void AmendGain(double factor);
   std::string ToCsv();
   std::string ToJson();
-  std::unique_ptr<StringOscillatorC> TuneString(uint8_t amount);
-  static std::unique_ptr<StringOscillatorC> CreateUntunedString(bool is_coupled = true);
-  static std::unique_ptr<StringOscillatorC> CreateStringFromCsv(const std::string& csv_string);
+  std::unique_ptr<StringOccilator> TuneString(uint8_t amount);
+  static std::unique_ptr<StringOccilator> CreateUntunedString(bool is_coupled = true);
+  static std::unique_ptr<StringOccilator> CreateStringFromCsv(const std::string& csv_string);
 
-  uint32_t GetSampleNumber() const { return sample_pos; }
+  std::size_t GetSampleNumber() const { return sample_pos; }
   const double& GetFreqFactor() const { return start_frequency_factor; }
   const double& GetAmpFactor() const { return start_amplitude_factor; }
   bool IsCoupled() const { return base_frequency_coupled; }
@@ -81,7 +81,7 @@ class StringOscillatorC {
   double amplitude_state;
   double frequency_state;
   double base_frequency;
-  double sample_pos;
+  std::size_t sample_pos;
   bool in_amplitude_decay;
 
   std::mt19937 rand_eng;
@@ -92,7 +92,7 @@ class StringOscillatorC {
   // f(x) = A*sin( ( f * x/N - p ) * 2*pi)
   //
   inline double SineWave() {
-    const double theta = sample_pos * frequency_state + phase_factor;
+    const double theta = static_cast<double>(sample_pos) * k_sample_increment * frequency_state + phase_factor;
     return amplitude_state * sin(theta * M_PI * 2);
   }
 };

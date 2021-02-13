@@ -36,11 +36,11 @@ static void AppUsage() {
 
 int main(int argc, char** argv) {
   // Application defaults.
-  uint16_t class_size = 100;
-  uint16_t start_instrument_size = 10;
-  uint16_t max_instrument_size = 1000;
-  uint16_t instrument_growth = 0;
-  uint16_t training_generations = 1;
+  std::size_t class_size = 100;
+  std::size_t start_instrument_size = 10;
+  std::size_t max_instrument_size = 1000;
+  std::size_t instrument_growth = 0;
+  std::size_t training_generations = 1;
   std::string audio_file = "train.wav";
   std::string midi_file = "train.mid";
   std::string progression_output = "";
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
     start_instrument_size = max_instrument_size;
   }
 
-  if (class_size < 10) {
+  if (class_size < 10U) {
     std::cout << "Class size to small... " << std::endl;
     return EXIT_BAD_ARGS;
   }
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
 
   // TODO(Brandon): Read MIDI file into memory.
   // Create Trainer class using input parameters.
-  trainer::GeneticInstumentTrainerC trainer = {start_instrument_size, class_size, source_signal, progression_output,
+  trainer::GeneticInstumentTrainer trainer = {start_instrument_size, class_size, source_signal, progression_output,
                                                instrument_growth};
   std::cout << "Starting Training... " << std::endl;
   trainer.Start(training_generations);

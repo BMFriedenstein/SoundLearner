@@ -31,19 +31,19 @@ class DataBuilder {
   static constexpr std::size_t img_resolution = 512U;
   std::mt19937 rand_eng;
   // Define the range.
-  uint32_t num_samples;
-  uint32_t coupled_oscilators;
-  uint32_t uncoupled_oscilators;
-  uint32_t starting_index;
+  std::size_t num_samples;
+  std::size_t coupled_oscilators;
+  std::size_t uncoupled_oscilators;
+  std::size_t starting_index;
 
  public:
-  void DataBuildJob(const double& velocity, const double& freq, uint32_t* index);
+  void DataBuildJob(double velocity, double freq, std::size_t index);
 
   DataBuilder(std::size_t sample_time_secs,
-              uint32_t coupled_oscilators,
-              uint32_t uncoupled_oscilators = 0,
-              uint32_t starting_index = 0,
-              uint32_t rand_seed = std::random_device {}())
+              std::size_t coupled_oscilators,
+              std::size_t uncoupled_oscilators = 0,
+              std::size_t starting_index = 0,
+              std::size_t rand_seed = std::random_device {}())
       : rand_eng(rand_seed),
         num_samples(SAMPLE_RATE * sample_time_secs),
         coupled_oscilators(coupled_oscilators),
