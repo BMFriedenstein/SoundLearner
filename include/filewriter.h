@@ -64,54 +64,54 @@ class ImgWriter {
 };
 
 template <typename T>
-inline constexpr RGBA ToRgba(T val) {
+static inline RGBA ToRgba(T val, ColorScaleType type) {
   static_assert(std::is_arithmetic<T>::value, "Invalid type");
-  const uint8_t rgba_val =
-      static_cast<uint8_t>(std::clamp(255.0 - (255.0 * val) / std::numeric_limits<T>::max(), 0.0, 255.0));
-  return {rgba_val, rgba_val, rgba_val, 255U};
-}
-template <>
-inline constexpr RGBA ToRgba<uint8_t>(uint8_t val) {
-  return {val, val, val, 255U};
-}
-template <>
-inline constexpr RGBA ToRgba<double>(double val) {
-  const uint8_t rgba_val = static_cast<uint8_t>(std::clamp(255.0 - val * 255.0, 0.0, 255.0));
-  return {rgba_val, rgba_val, rgba_val, 255U};
-}
-template <typename T>
-inline constexpr RGBA ToRgba(T val, ColorScaleType type) {
+  const double clamped_val = std::clamp(static_cast<double>(val) / std::numeric_limits<T>::max(), 0.0, 1.0);
   switch (type) {
     case ColorScaleType::RGB: {
-      const int clamped_val = static_cast<int>(std::clamp((765.0 * val) / std::numeric_limits<T>::max(), 0.0, 765.0));
-      const uint8_t r_val = static_cast<uint8_t>(std::clamp(clamped_val, 0, 255));
-      const uint8_t g_val = static_cast<uint8_t>(std::clamp(clamped_val - 255, 0, 255));
-      const uint8_t b_val = static_cast<uint8_t>(std::clamp(clamped_val - 512, 0, 255));
+      const uint32_t val_u32 = clamped_val * 0xFFFFFFU;
+      const uint8_t r_val = static_cast<uint8_t>((val_u32 >> 0) & 0XFFU);
+      const uint8_t g_val = static_cast<uint8_t>((val_u32 >> 8) & 0XFFU);
+      const uint8_t b_val = static_cast<uint8_t>((val_u32 >> 16) & 0XFFU);
+      return {r_val, g_val, b_val, 255U};
+    }
+    case ColorScaleType::YUV: {
+      uint8_t r_val = 0;
+      uint8_t g_val = 0;
+      uint8_t b_val = 0;
+      if (0 <= clamped_val && clamped_val <= 1 / 8) {
+        r_val = 0;
+        g_val = 0;
+        b_val = (4 * clamped_val + .5) * 255;
+      } else if (1 / 8 < clamped_val && clamped_val <= 3 / 8) {
+        r_val = 0;
+        g_val = (4 * clamped_val - 0.5) * 255;
+        b_val = 1;
+      } else if (3 / 8 < clamped_val && clamped_val <= 5 / 8) {
+        r_val = (4 * clamped_val - 1.5) * 255;
+        g_val = 255;
+        b_val = (-4 * clamped_val + 2.5) * 255;
+      } else if (5 / 8 < clamped_val && clamped_val <= 7 / 8) {
+        r_val = 255;
+        g_val = (-4 * clamped_val + 3.5) * 255;
+        b_val = 0;
+      } else if (7 / 8 < clamped_val && clamped_val <= 1) {
+        r_val = (-4 * clamped_val + 4.5) * 255;
+        g_val = 0;
+        b_val = 0;
+      } else {
+        r_val = 255;
+        g_val = 0;
+        b_val = 0;
+      }
       return {r_val, g_val, b_val, 255U};
     }
     case ColorScaleType::GRAYSCALE:
-    default:
-      return ToRgba(val);
-  }
-  const uint8_t rgba_val = static_cast<uint8_t>(std::clamp(255.0 - val * 255.0, 0.0, 255.0));
-  return {rgba_val, rgba_val, rgba_val, 255U};
-}
-template <>
-inline constexpr RGBA ToRgba(double val, ColorScaleType type) {
-  switch (type) {
-    case ColorScaleType::RGB: {
-      const int clamped_val = static_cast<int>(std::clamp(val * 765, 0.0, 765.0));
-      const uint8_t r_val = static_cast<uint8_t>(std::clamp(clamped_val, 0, 255));
-      const uint8_t g_val = static_cast<uint8_t>(std::clamp(clamped_val - 255, 0, 255));
-      const uint8_t b_val = static_cast<uint8_t>(std::clamp(clamped_val - 512, 0, 255));
-      return {r_val, g_val, b_val, 255U};
+    default: {
+      const uint8_t c_val = static_cast<uint8_t>(clamped_val * 255);
+      return {c_val, c_val, c_val, 255U};
     }
-    case ColorScaleType::GRAYSCALE:
-    default:
-      return ToRgba(val);
   }
-  const uint8_t rgba_val = static_cast<uint8_t>(std::clamp(255.0 - val * 255.0, 0.0, 255.0));
-  return {rgba_val, rgba_val, rgba_val, 255U};
 }
 
 namespace ppm {
@@ -128,7 +128,8 @@ class PPMWriter : public ImgWriter<T, W, H> {
     for (std::size_t j = H - 1; j; --j) {
       for (std::size_t i = 0; i < W; ++i) {
         const RGBA rgba = ToRgba(this->img_data[i][j], C);
-        fout << std::to_string(rgba.rgba_st.R) << ' ' << std::to_string(rgba.rgba_st.G) << ' ' << std::to_string(rgba.rgba_st.B) << '\n';
+        fout << std::to_string(rgba.rgba_st.R) << ' ' << std::to_string(rgba.rgba_st.G) << ' '
+             << std::to_string(rgba.rgba_st.B) << '\n';
       }
     }
     fout.close();
@@ -138,7 +139,7 @@ class PPMWriter : public ImgWriter<T, W, H> {
 
 namespace bmp {
 
-template <typename T, std::size_t W, std::size_t H, ColorScaleType C = ColorScaleType::GRAYSCALE>
+template <typename T, std::size_t W, std::size_t H>
 class BMPWriter : public ImgWriter<T, W, H> {
  public:
   explicit BMPWriter(const std::array<std::array<T, W>, H>& a_data) : ImgWriter<T, W, H>(a_data) {
@@ -161,14 +162,14 @@ class BMPWriter : public ImgWriter<T, W, H> {
     infoheader.bit_count = 32;
   }
 
-  void Write(const std::string& a_file_name) override {
+  template <ColorScaleType C=ColorScaleType::GRAYSCALE>
+  void Write(const std::string& a_file_name) {
     std::array<RGBA, W * H> flattened_data;
     for (std::size_t i = W - 1; i > 0; --i) {
       for (std::size_t j = H - 1; j > 0; --j) {
         flattened_data[i * H + j] = ToRgba(this->img_data[j][i], C);
       }
     }
-
     std::fstream fout;
     fout = std::fstream(a_file_name, std::ios::out | std::ios::binary);
     fout.write(reinterpret_cast<const char*>(&fileheader), sizeof(fileheader));
@@ -176,6 +177,10 @@ class BMPWriter : public ImgWriter<T, W, H> {
     fout.write(reinterpret_cast<const char*>(flattened_data.data()), flattened_data.size() * sizeof(RGBA));
     fout.write(reinterpret_cast<const char*>(&colorheader), sizeof(colorheader));
     fout.close();
+  }
+
+  void Write(const std::string& a_file_name) override {
+      Write<ColorScaleType::GRAYSCALE>(a_file_name);
   }
 
  private:

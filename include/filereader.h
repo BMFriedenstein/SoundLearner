@@ -42,7 +42,7 @@ class BMPReaderC {
 
 namespace wave {
 class WaveReaderC {
- public:
+public:
   explicit WaveReaderC(const std::string& a_filename) : filename(a_filename) {
     // Open file.
     std::ifstream wav_file(a_filename, std::ios::binary);

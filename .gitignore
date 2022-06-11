@@ -54,3 +54,4 @@ src/player/StringSoundsPlayer.debug
 /soundlearner.code-workspace
 *.vscode/*
 /compile_commands.json
+/dataset_builder/build/*

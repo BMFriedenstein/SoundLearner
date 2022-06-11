@@ -62,7 +62,7 @@ union RGBA {
   } __attribute__((packed)) rgba_st;
   uint32_t rgba;
 };
-enum class ColorScaleType { GRAYSCALE, RGB };
+enum class ColorScaleType { GRAYSCALE, RGB, YUV };
 
 struct BMPFileHeader {
   uint16_t file_type = 0x4D42;  // File type always BM which is 0x4D42
