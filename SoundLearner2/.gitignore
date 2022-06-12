@@ -1,0 +1,57 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+b/*
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+.xml
+/.settings/language.settings.xml
+/.cproject
+/.project
+src/trainer/StringSoundsTrainer
+src/trainer/StringSoundsTrainer.debug
+src/player/StringSoundsPlayer
+src/player/StringSoundsPlayer.debug
+
+/src/trainer/progression/*
+/src/dataset_builder/data/*
+/src/genetic_trainer/progression/*
+/src/dataset_builder/DatatsetBuilder
+/src/dataset_builder/DatatsetBuilder.debug
+/src/genetic_trainer/StringSoundsTrainer
+/src/genetic_trainer/StringSoundsTrainer.debug
+/.pydevproject
+/.settings/org.eclipse.core.resources.prefs
+/src/sox_log/*
+/soundlearner.code-workspace
+*.vscode/*
+/compile_commands.json
+/dataset_builder/build/*
