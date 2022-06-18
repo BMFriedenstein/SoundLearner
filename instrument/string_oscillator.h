@@ -25,28 +25,23 @@
 
 namespace instrument {
 namespace oscillator {
-constexpr double k_sample_increment = 1.0 / SAMPLE_RATE;            // 0.00002267573
-constexpr double k_min_amp_cutoff = 0;                              // 0
-constexpr double k_max_amp_cutoff = 1;                              // 1
-constexpr double k_min_amp_decay_rate = 0.99999842823;              // 0.99999842823       50% at 20 second
-constexpr double k_max_amp_decay_rate = 0.99921442756;              //        50% at 20 millisecond
-constexpr double k_min_freq_decay_rate = 1.0;                       //                   no decay
-constexpr double k_max_freq_decay_rate = 0.99999991268;             //        50% at 180 second
-constexpr double k_max_amp_attack_rate = 20 * k_sample_increment;   // 0.002267573         50 ms
-constexpr double k_min_amp_attack_rate = k_sample_increment / 150;  // 1.5117158e-7        150 seconds
-constexpr double k_max_coupled_freq_factor = 10.0;                  // 10
-constexpr double k_max_uncoupled_freq_factor = 20000.0;             // 20000
-constexpr double k_min_freq_factor = 20 / 20000;                    // 0.001
+constexpr double k_sample_increment = 1.0 / SAMPLE_RATE;           // 0.00002267573
+constexpr double k_min_amp_cutoff = 0;                             // 0
+constexpr double k_max_amp_cutoff = 1;                             // 1
+constexpr double k_min_amp_decay_rate = 0.99999842823;             // 0.99999842823       50% at 20 second
+constexpr double k_max_amp_decay_rate = 0.99921442756;             //        50% at 20 millisecond
+constexpr double k_min_freq_decay_rate = 1.0;                      //                   no decay
+constexpr double k_max_freq_decay_rate = 0.99999991268;            //        50% at 180 second
+constexpr double k_max_amp_attack_rate = 20 * k_sample_increment;  // 0.002267573         50 ms
+constexpr double k_min_amp_attack_rate = k_sample_increment / 150; // 1.5117158e-7        150 seconds
+constexpr double k_max_coupled_freq_factor = 10.0;                 // 10
+constexpr double k_max_uncoupled_freq_factor = 20000.0;            // 20000
+constexpr double k_min_freq_factor = 20 / 20000;                   // 0.001
 
 class StringOccilator {
- public:
-  StringOccilator(double initial_phase,
-                  double frequency_factor,
-                  double amplitude_factor,
-                  double amplitude_decay,
-                  double amplitude_attack,
-                  double frequency_decay,
-                  bool is_coupled);
+public:
+  StringOccilator(double initial_phase, double frequency_factor, double amplitude_factor, double amplitude_decay, double amplitude_attack,
+                  double frequency_decay, bool is_coupled);
   void PrimeString(double frequency, double velocity);
   double NextSample();
   void AmendGain(double factor);
@@ -54,14 +49,14 @@ class StringOccilator {
   std::string ToJson();
   std::unique_ptr<StringOccilator> TuneString(uint8_t amount);
   static std::unique_ptr<StringOccilator> CreateUntunedString(bool is_coupled = true);
-  static std::unique_ptr<StringOccilator> CreateStringFromCsv(const std::string& csv_string);
+  static std::unique_ptr<StringOccilator> CreateStringFromCsv(const std::string &csv_string);
 
   std::size_t GetSampleNumber() const { return sample_pos; }
-  const double& GetFreqFactor() const { return start_frequency_factor; }
-  const double& GetAmpFactor() const { return start_amplitude_factor; }
+  const double &GetFreqFactor() const { return start_frequency_factor; }
+  const double &GetAmpFactor() const { return start_amplitude_factor; }
   bool IsCoupled() const { return base_frequency_coupled; }
 
- private:
+private:
   // Sinusoid's start definition.
   double phase_factor;
   double start_frequency_factor;
@@ -96,6 +91,6 @@ class StringOccilator {
     return amplitude_state * sin(theta * M_PI * 2);
   }
 };
-}  // namespace oscillator
-}  // namespace instrument
-#endif  // INSTRUMENT_STRING_OSCILLATOR_H_
+} // namespace oscillator
+} // namespace instrument
+#endif // INSTRUMENT_STRING_OSCILLATOR_H_

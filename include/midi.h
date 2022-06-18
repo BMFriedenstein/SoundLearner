@@ -16,4 +16,4 @@
 #define INCLUDE_MIDI_H_
 
 // TODO(brandon): Add midi file parser
-#endif  // INCLUDE_MIDI_H_
+#endif // INCLUDE_MIDI_H_

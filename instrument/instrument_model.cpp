@@ -22,24 +22,20 @@
 
 namespace instrument {
 
-InstrumentModel::InstrumentModel(const std::vector<std::string>& csv_strings, const std::string& instrument_name)
-    : name(instrument_name) {
+InstrumentModel::InstrumentModel(const std::vector<std::string> &csv_strings, const std::string &instrument_name) : name(instrument_name) {
   sound_strings.reserve(csv_strings.size());
-  std::for_each(csv_strings.begin(), csv_strings.end(), [&](const auto& str) {
-    sound_strings.push_back(std::move(oscillator::StringOccilator::CreateStringFromCsv(str)));
-  });
+  std::for_each(csv_strings.begin(), csv_strings.end(),
+                [&](const auto &str) { sound_strings.push_back(std::move(oscillator::StringOccilator::CreateStringFromCsv(str))); });
 }
 
-InstrumentModel::InstrumentModel(std::size_t num_strings, const std::string& instrument_name) : name(instrument_name) {
+InstrumentModel::InstrumentModel(std::size_t num_strings, const std::string &instrument_name) : name(instrument_name) {
   sound_strings.reserve(num_strings);
   for (std::size_t i = 0; i < num_strings; i++) {
     AddUntunedString(false);
   }
 }
 
-InstrumentModel::InstrumentModel(std::size_t num_coupled_strings,
-                                 std::size_t num_uncoupled_strings,
-                                 const std::string& instrument_name)
+InstrumentModel::InstrumentModel(std::size_t num_coupled_strings, std::size_t num_uncoupled_strings, const std::string &instrument_name)
     : name(instrument_name) {
   sound_strings.reserve(num_uncoupled_strings + num_coupled_strings);
   for (std::size_t i = 0; i < num_uncoupled_strings; i++) {
@@ -55,7 +51,7 @@ InstrumentModel::InstrumentModel(std::size_t num_coupled_strings,
  * @parameters: reference to a a_tuned_string (StringOccilator),
  * @returns: none
  */
-void InstrumentModel::AddTunedString(const oscillator::StringOccilator&& a_tuned_string) {
+void InstrumentModel::AddTunedString(const oscillator::StringOccilator &&a_tuned_string) {
   auto tuned_string = std::make_unique<oscillator::StringOccilator>(oscillator::StringOccilator(a_tuned_string));
   sound_strings.push_back(std::move(tuned_string));
 }
@@ -118,14 +114,13 @@ std::string InstrumentModel::ToCsv(SortType sort_type) {
  * @returns: vector of doubles
  */
 std::vector<double> InstrumentModel::GenerateSignal(double velocity, double frequency, std::size_t num_of_samples) {
-  std::for_each(sound_strings.begin(), sound_strings.end(),
-                [&](const auto& s) { s->PrimeString(frequency, velocity); });
+  std::for_each(sound_strings.begin(), sound_strings.end(), [&](const auto &s) { s->PrimeString(frequency, velocity); });
 
   // Generate samples.
   std::vector<double> signal(num_of_samples);
   for (std::size_t i = 0; i < signal.size(); ++i) {
     double sample_val{0};
-    std::for_each(sound_strings.begin(), sound_strings.end(), [&](const auto& s) { sample_val += s->NextSample(); });
+    std::for_each(sound_strings.begin(), sound_strings.end(), [&](const auto &s) { sample_val += s->NextSample(); });
     signal[i] = sample_val;
   }
 
@@ -139,25 +134,19 @@ std::vector<double> InstrumentModel::GenerateSignal(double velocity, double freq
  *          number of sample to generate.
  * @returns: vector of integers
  */
-std::vector<int16_t> InstrumentModel::GenerateIntSignal(double velocity,
-                                                        double frequency,
-                                                        std::size_t num_of_samples,
-                                                        bool& has_distorted_out,
+std::vector<int16_t> InstrumentModel::GenerateIntSignal(double velocity, double frequency, std::size_t num_of_samples, bool &has_distorted_out,
                                                         bool return_on_distort) {
   has_distorted_out = false;
-  std::for_each(sound_strings.begin(), sound_strings.end(),
-                [&](const auto& s) { s->PrimeString(frequency, velocity); });
+  std::for_each(sound_strings.begin(), sound_strings.end(), [&](const auto &s) { s->PrimeString(frequency, velocity); });
 
   // Generate samples.
   std::vector<int16_t> signal(num_of_samples);
   for (std::size_t i = 0; i < num_of_samples; i++) {
     double sample_val{0};
-    std::for_each(sound_strings.begin(),
-                  sound_strings.end(),
-                  [&](const auto& s) { sample_val +=  s->NextSample(); });
+    std::for_each(sound_strings.begin(), sound_strings.end(), [&](const auto &s) { sample_val += s->NextSample(); });
 
     // Convert to int32.
-    if (sample_val > 1.0 ) {
+    if (sample_val > 1.0) {
       sample_val = 1.0;
       has_distorted_out = true;
     } else if (sample_val < -1.0) {
@@ -176,7 +165,7 @@ std::vector<int16_t> InstrumentModel::GenerateIntSignal(double velocity,
 }
 
 void InstrumentModel::AmendGain(double factor) {
-  std::for_each(sound_strings.begin(), sound_strings.end(), [&factor](const auto& s) { s->AmendGain(factor); });
+  std::for_each(sound_strings.begin(), sound_strings.end(), [&factor](const auto &s) { s->AmendGain(factor); });
 }
 static std::mt19937 stat_rand_eng = std::mt19937(std::random_device{}());
 /*
@@ -185,7 +174,7 @@ static std::mt19937 stat_rand_eng = std::mt19937(std::random_device{}());
  * @returns: unique pointer to an instrument
  */
 std::unique_ptr<InstrumentModel> InstrumentModel::TuneInstrument(uint8_t amount) {
-  std::uniform_real_distribution<> real_distr(0, 1);  // define the range.
+  std::uniform_real_distribution<> real_distr(0, 1); // define the range.
 
   std::string new_name = "new_" + std::to_string(time(nullptr));
   if (real_distr(stat_rand_eng) < 0.1) {
@@ -202,4 +191,4 @@ std::unique_ptr<InstrumentModel> InstrumentModel::TuneInstrument(uint8_t amount)
     return mutant_instrument;
   }
 }
-}  // namespace instrument
+} // namespace instrument

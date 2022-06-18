@@ -26,4 +26,4 @@ constexpr uint32_t SAMPLE_RATE = 44100;
 constexpr uint32_t POW_2_SAMPLE_SIZE = 32768;
 constexpr uint32_t BITDEPTH = 16;
 
-#endif  // INCLUDE_COMMON_H_
+#endif // INCLUDE_COMMON_H_

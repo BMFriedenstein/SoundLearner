@@ -38,12 +38,12 @@ static inline void AppUsage() {
             << "-p --startpoint <0> (save data)" << std::endl;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   // Application defaults.
   std::size_t coupled_oscilators = 50;
   std::size_t uncoupled_oscilators = 0;
   std::size_t dataset_size = 100;
-  std::size_t sample_time = 5;  // In seconds
+  std::size_t sample_time = 5; // In seconds
   std::size_t starting_point = 0;
 
   // Parse arguments.
@@ -53,9 +53,9 @@ int main(int argc, char** argv) {
       AppUsage();
       return EXIT_NORMAL;
     }
-    if (((arg1 == "-n") || (arg1 == "--dataset-size") || (arg1 == "-m") || (arg1 == "--midi") || (arg1 == "-s") ||
-         (arg1 == "--instrument-size") || (arg1 == "-d") || (arg1 == "--data_save") || (arg1 == "-c") ||
-         (arg1 == "--uncoupled-oscilators") || (arg1 == "-p") || (arg1 == "--startpoint")) &&
+    if (((arg1 == "-n") || (arg1 == "--dataset-size") || (arg1 == "-m") || (arg1 == "--midi") || (arg1 == "-s") || (arg1 == "--instrument-size") ||
+         (arg1 == "-d") || (arg1 == "--data_save") || (arg1 == "-c") || (arg1 == "--uncoupled-oscilators") || (arg1 == "-p") ||
+         (arg1 == "--startpoint")) &&
         (i + 1 < argc)) {
       const std::string_view arg2 = argv[++i];
       std::cout << arg1 << " " << arg2 << std::endl;
@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
   std::cout << "Building dataset...";
   std::cout << uncoupled_oscilators << std::endl;
   const double note_played_freq = 1000.0;
-  const double velocity = 1.0/(coupled_oscilators + uncoupled_oscilators);
+  const double velocity = 1.0 / (coupled_oscilators + uncoupled_oscilators);
   auto builder = DataBuilder(sample_time, coupled_oscilators, uncoupled_oscilators, starting_point);
   for (std::size_t i = 0; i < dataset_size; ++i) {
     std::cout << "IDX: " << i << "...\n";
@@ -93,14 +93,9 @@ int main(int argc, char** argv) {
 void DataBuilder::DataBuildJob(double velocity, double freq, std::size_t index) {
   instrument::InstrumentModel rand_instrument(coupled_oscilators, uncoupled_oscilators, std::to_string(index));
   bool sample_has_distorted = false;
+  std::vector<double> sample_double = rand_instrument.GenerateSignal(velocity, freq, num_samples);
   std::vector<int16_t> sample = rand_instrument.GenerateIntSignal(velocity, freq, num_samples, sample_has_distorted, false);
 
-  // Skip generated samples that distort.
-  if (sample_has_distorted) { std::cout << "!clipped\n"; }
-  uint32_t abs_sum;
-  std::for_each(sample.begin(), sample.end(), [&abs_sum](const auto i) { abs_sum += std::max(static_cast<int16_t>(i), static_cast<int16_t>(-i)); });
-  std::cout << "Amp:" << static_cast<float>(abs_sum)/(static_cast<float>(num_samples) * std::numeric_limits<int16_t>::max()) << "%\n";
-  std::cout << rand_instrument.ToJson();
   // Write out the sample to a mono .wav file
   std::cout << "writing wav\n";
   const auto file_name = std::string(data_output) + std::to_string(starting_index + index);
@@ -109,22 +104,22 @@ void DataBuilder::DataBuildJob(double velocity, double freq, std::size_t index) 
 
   // Write out the spectrogram to a image file
   std::cout << "calc spectogram\n";
-  const auto spectogram = fft::spectrogram::CreateSpectrogram<int16_t, uint32_t, img_resolution>(sample);
+  const auto spectogram = fft::spectrogram::CreateSpectrogram<img_resolution>(sample_double);
   std::cout << "writing bmp\n";
-  filewriter::bmp::BMPWriter<uint32_t, img_resolution, img_resolution> bmp_writer(spectogram);
+  filewriter::bmp::BMPWriter<double, img_resolution, img_resolution> bmp_writer(spectogram);
   bmp_writer.Write<ColorScaleType::RGB>(file_name + "_rgb.bmp");
   bmp_writer.Write<ColorScaleType::YUV>(file_name + "_yuv.bmp");
   bmp_writer.Write<ColorScaleType::GRAYSCALE>(file_name + "_grey.bmp");
   std::cout << "writing ppm\n";
-  filewriter::ppm::PPMWriter<uint32_t, img_resolution, img_resolution, ColorScaleType::RGB> ppm_writer(std::move(spectogram));
+  filewriter::ppm::PPMWriter<double, img_resolution, img_resolution, ColorScaleType::RGB> ppm_writer(std::move(spectogram));
   ppm_writer.Write(file_name + ".ppm");
 
-  const auto mel_spectogram = fft::spectrogram::CreateMelSpectrogram<int16_t, uint32_t, img_resolution*1, img_resolution>(sample);
+  const auto mel_spectogram = fft::spectrogram::CreateMelSpectrogram<img_resolution>(sample_double);
   std::cout << "writing bmp\n";
-  filewriter::bmp::BMPWriter<uint32_t, img_resolution, img_resolution> mbmp_writer(mel_spectogram);
+  filewriter::bmp::BMPWriter<double, img_resolution, img_resolution> mbmp_writer(mel_spectogram);
   mbmp_writer.Write("mel" + file_name + ".bmp");
   std::cout << "writing ppm\n";
-  filewriter::ppm::PPMWriter<uint32_t, img_resolution, img_resolution> mppm_writer(std::move(mel_spectogram));
+  filewriter::ppm::PPMWriter<double, img_resolution, img_resolution> mppm_writer(std::move(mel_spectogram));
   mppm_writer.Write("mel" + file_name + ".ppm");
 
   // Write out meta and data files

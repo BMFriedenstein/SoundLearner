@@ -29,21 +29,21 @@ namespace filereader {
 
 namespace bmp {
 class BMPReaderC {
- public:
-  explicit BMPReaderC(const std::string& a_filename);
+public:
+  explicit BMPReaderC(const std::string &a_filename);
   std::string HeaderToString();
 
- private:
+private:
   std::string filename;
   WavFileHeader header;
   std::vector<char> wav_data;
 };
-}  // namespace bmp
+} // namespace bmp
 
 namespace wave {
 class WaveReaderC {
 public:
-  explicit WaveReaderC(const std::string& a_filename) : filename(a_filename) {
+  explicit WaveReaderC(const std::string &a_filename) : filename(a_filename) {
     // Open file.
     std::ifstream wav_file(a_filename, std::ios::binary);
     if (!wav_file.is_open()) {
@@ -94,7 +94,7 @@ public:
       // 16 bit.
       if (header.bit_depth == 16) {
         std::vector<int16_t> out_vector(static_cast<int>(wav_data.size()) / 2);
-        memcpy(reinterpret_cast<char*>(out_vector.data()), wav_data.data(), static_cast<int>(wav_data.size()));
+        memcpy(reinterpret_cast<char *>(out_vector.data()), wav_data.data(), static_cast<int>(wav_data.size()));
         return out_vector;
       }
       // TODO(Brandon): Handle other Bit depth.
@@ -108,12 +108,12 @@ public:
   std::vector<int32_t> ToMono32BitWave();
   std::vector<float> ToMonoFloatWave();
 
- private:
+private:
   std::string filename;
   WavFileHeader header;
   std::vector<char> wav_data;
 };
-}  // namespace wave
-}  // namespace filereader
+} // namespace wave
+} // namespace filereader
 
-#endif  // INCLUDE_FILEREADER_H_
+#endif // INCLUDE_FILEREADER_H_

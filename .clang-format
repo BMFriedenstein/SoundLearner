@@ -1,2 +1,9 @@
-﻿BasedOnStyle: Chromium
-ColumnLimit: 120
+﻿---
+BasedOnStyle: LLVM
+AlignTrailingComments: 'true'
+Cpp11BracedListStyle: 'true'
+Standard: Cpp11
+TabWidth: 3
+UseTab: Never
+ColumnLimit: 150
+...

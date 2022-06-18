@@ -3,6 +3,8 @@ project('SoundLearner', 'cpp',
                            'cpp_std=c++2a',
                            'optimization=0',
                            'warning_level=3',
+                           'werror=true',
+                           'b_coverage=true',
                            'b_lto=true'
                           ]
 )
@@ -12,6 +14,5 @@ add_project_arguments('-pedantic', language : 'cpp')
 subdir('include/')
 subdir('instrument/')
 subdir('dataset_builder/')
-subdir('genetic_trainer/')
 subdir('player/')
 

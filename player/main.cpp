@@ -33,7 +33,7 @@ static void AppUsage() {
             << std::endl;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   double velocity = 1.0;
   double note_played = 440.0;
   std::string filename = "";
@@ -45,8 +45,8 @@ int main(int argc, char** argv) {
       AppUsage();
       return EXIT_NORMAL;
     }
-    if (((arg == "-f") || (arg == "--filename") || (arg == "-n") || (arg == "--note") || (arg == "-v") ||
-         (arg == "--velocity") || (arg == "-l") || (arg == "--length")) &&
+    if (((arg == "-f") || (arg == "--filename") || (arg == "-n") || (arg == "--note") || (arg == "-v") || (arg == "--velocity") || (arg == "-l") ||
+         (arg == "--length")) &&
         (i + 1 < argc)) {
       std::string arg2 = argv[++i];
       std::cout << arg << " " << arg2 << std::endl;
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
 
   // Now read the model
   std::vector<std::string> instrument_strings;
-  std::ifstream file(filename);  // file just has some sentences
+  std::ifstream file(filename); // file just has some sentences
   if (!file) {
     std::cout << "unable to open file: " << filename << std::endl;
     return EXIT_BAD_ARGS;
