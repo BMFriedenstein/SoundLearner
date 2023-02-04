@@ -126,8 +126,7 @@ static inline std::array<std::array<double, Y>, X> CreateSpectrogram(const std::
 template <std::size_t X, std::size_t Q = X * 25>
 static inline std::array<std::array<double, X>, X> CreateMelSpectrogram(const std::vector<double> &source_signal) {
   const double slope_m = 1.0 / (fft_spectogram_min - fft_spectogram_max);
-  const double log_max = std::log2(static_cast<double>(SAMPLE_RATE));
-  const double log_increments = log_max / X;
+  const double log_max = std::log2(static_cast<double>(SAMPLE_RATE+1));
 
   std::array<std::array<double, X>, X> mel_spectogram{{}};
   auto source_idx{0U};
@@ -144,8 +143,8 @@ static inline std::array<std::array<double, X>, X> CreateMelSpectrogram(const st
     // Map Q size FFT to X sized FFT using log2 transform.
     std::array<std::vector<double>, X> log_bins{};
     for (auto y{0U}; y < Q; ++y) {
-      const int mapped_y = y > 0 ? static_cast<int>(std::round(std::log2(y) / log_increments)) : 0; // TODO double check math.
-      if (mapped_y < static_cast<int>(X) && mapped_y >= 0) {
+      const auto mapped_y = static_cast<std::size_t>(std::floor(X * std::log2(y + 1) / log_max)); // TODO double check math.
+      if (mapped_y < X) {
         log_bins[mapped_y].push_back(scratch_buffer[y]);
       }
     }
