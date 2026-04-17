@@ -1,8 +1,10 @@
-incdir = include_directories('../')
+player_sources = files(
+  'main.cpp',
+)
 
-executable('player',
-           'main.cpp',
-            include_directories : incdir,
-            dependencies : [ instrument_dep, common_dep ],
-            install : false,
-          )
+executable(
+  'player',
+  player_sources,
+  dependencies : instrument_dep,
+  install : false,
+)

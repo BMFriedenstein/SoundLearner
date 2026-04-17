@@ -25,6 +25,7 @@
 #include <array>
 #include <complex>
 #include <limits>
+#include <numeric>
 #include <vector>
 
 #include "include/common.h"
@@ -33,8 +34,8 @@ namespace fft {
 static inline constexpr uint16_t max_fft_size = 0xFFFFU;
 static inline constexpr uint8_t real = 0;
 static inline constexpr uint8_t imag = 1;
-static double fft_spectogram_min = -70.0;
-static double fft_spectogram_max = 50.0;
+static double fft_spectogram_min = 50.0;
+static double fft_spectogram_max = 190.0;
 static std::array<fftw_complex, max_fft_size> fft_in_buffer;
 static std::array<fftw_complex, max_fft_size> fft_out_buffer;
 static std::array<double, max_fft_size> scratch_buffer = {};
@@ -95,17 +96,23 @@ static inline void OneSidedFFT(std::array<double, A> *in_out_data, double freq, 
 
 namespace spectrogram {
 
-template <std::size_t X, std::size_t Y = X>
-static inline std::array<std::array<double, Y>, X> CreateSpectrogram(const std::vector<double> &source_signal) {
-  static_assert((Y * 2) < max_fft_size);
-  const double slope_m{1.0 / (fft_spectogram_min - fft_spectogram_max)};
+static inline double NormalizeSpectrogramValue(double value) {
+  if (std::isnan(value)) {
+    return 0.0;
+  }
 
-  std::array<std::array<double, Y>, X> return_spectogram = {{}};
+  const double normalized = (value - fft_spectogram_min) / (fft_spectogram_max - fft_spectogram_min);
+  return std::clamp(1.0 - normalized, 0.0, 1.0);
+}
+
+template <std::size_t X, std::size_t Y = X>
+static inline void CreateSpectrogram(const std::vector<double> &source_signal, std::array<std::array<double, Y>, X> &out_spectogram) {
+  static_assert((Y * 2) < max_fft_size);
 
   const std::size_t increment_size = source_signal.size() / X;
 
   std::size_t source_idx{0U};
-  for (auto window = return_spectogram.begin(); window != return_spectogram.end(); ++window) {
+  for (auto window = out_spectogram.begin(); window != out_spectogram.end(); ++window) {
     const auto copy_size = std::min(X, source_signal.size() - source_idx);
 
     std::memcpy(scratch_buffer.data(), &source_signal[source_idx], sizeof(double) * copy_size);
@@ -115,20 +122,24 @@ static inline std::array<std::array<double, Y>, X> CreateSpectrogram(const std::
 
     // Normalize to values between 0.0 and 1.0
     std::transform(scratch_buffer.begin(), scratch_buffer.begin() + X, window->begin(),
-                   [&](const auto &val) { return static_cast<double>(std::clamp<double>(val * slope_m, 0.0, 1.0)); });
+                   [](const auto &val) { return NormalizeSpectrogramValue(val); });
 
     source_idx += increment_size;
   }
+}
 
+template <std::size_t X, std::size_t Y = X>
+static inline std::array<std::array<double, Y>, X> CreateSpectrogram(const std::vector<double> &source_signal) {
+  std::array<std::array<double, Y>, X> return_spectogram = {{}};
+  CreateSpectrogram(source_signal, return_spectogram);
   return return_spectogram;
 }
 
 template <std::size_t X, std::size_t Q = X * 25>
-static inline std::array<std::array<double, X>, X> CreateMelSpectrogram(const std::vector<double> &source_signal) {
-  const double slope_m = 1.0 / (fft_spectogram_min - fft_spectogram_max);
-  const double log_max = std::log2(static_cast<double>(SAMPLE_RATE+1));
+static inline void CreateMelSpectrogram(const std::vector<double> &source_signal, std::array<std::array<double, X>, X> &mel_spectogram) {
+  static_assert((Q * 2) < max_fft_size);
+  const double log_max = std::log2(static_cast<double>(Q + 1));
 
-  std::array<std::array<double, X>, X> mel_spectogram{{}};
   auto source_idx{0U};
   const auto increment_size = source_signal.size() / X;
 
@@ -140,22 +151,28 @@ static inline std::array<std::array<double, X>, X> CreateMelSpectrogram(const st
 
     OneSidedFFT(reinterpret_cast<std::array<double, Q> *>(&scratch_buffer), SAMPLE_RATE);
 
-    // Map Q size FFT to X sized FFT using log2 transform.
-    std::array<std::vector<double>, X> log_bins{};
-    for (auto y{0U}; y < Q; ++y) {
-      const auto mapped_y = static_cast<std::size_t>(std::floor(X * std::log2(y + 1) / log_max)); // TODO double check math.
-      if (mapped_y < X) {
-        log_bins[mapped_y].push_back(scratch_buffer[y]);
-      }
-    }
+    // Map the Q FFT bins into X logarithmically spaced frequency buckets.
     for (auto y{0U}; y < X; ++y) {
-      const double sum_val = std::accumulate(log_bins[y].begin(), log_bins[y].end(), 0);
-      mel_spectogram[x][y] = std::clamp(slope_m * sum_val / log_bins[y].size(), 0.0, 1.0);
+      const double log_start = std::pow(2.0, (static_cast<double>(y) * log_max) / X) - 1.0;
+      const double log_end = std::pow(2.0, (static_cast<double>(y + 1) * log_max) / X) - 1.0;
+      const auto bin_start = std::min<std::size_t>(static_cast<std::size_t>(std::floor(log_start)), Q - 1);
+      const auto bin_end = std::min<std::size_t>(std::max<std::size_t>(static_cast<std::size_t>(std::ceil(log_end)), bin_start + 1), Q);
+      const auto bin_count = bin_end - bin_start;
+
+      if (bin_count > 0) {
+        const double sum_val = std::accumulate(scratch_buffer.begin() + bin_start, scratch_buffer.begin() + bin_end, 0.0);
+        mel_spectogram[x][y] = NormalizeSpectrogramValue(sum_val / static_cast<double>(bin_count));
+      }
     }
 
     source_idx += increment_size;
   }
+}
 
+template <std::size_t X, std::size_t Q = X * 25>
+static inline std::array<std::array<double, X>, X> CreateMelSpectrogram(const std::vector<double> &source_signal) {
+  std::array<std::array<double, X>, X> mel_spectogram{{}};
+  CreateMelSpectrogram<X, Q>(source_signal, mel_spectogram);
   return mel_spectogram;
 }
 

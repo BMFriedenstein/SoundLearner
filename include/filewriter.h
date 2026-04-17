@@ -15,14 +15,17 @@
 #ifndef INCLUDE_FILEWRITER_H_
 #define INCLUDE_FILEWRITER_H_
 
-#include <cmath>
-
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <fstream>
-#include <iostream>
 #include <limits>
+#include <memory>
+#include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -30,87 +33,118 @@
 #include "include/structures.h"
 
 namespace filewriter {
+
+namespace detail {
+
+static inline void EnsureOpen(const std::ofstream &stream, const std::string &filename) {
+  if (!stream) {
+    throw std::runtime_error("Unable to open output file: " + filename);
+  }
+}
+
+template <typename T> static inline double NormalizePixel(T value) {
+  static_assert(std::is_arithmetic_v<T>, "Image pixels must be arithmetic values");
+
+  if constexpr (std::is_floating_point_v<T>) {
+    return std::clamp(static_cast<double>(value), 0.0, 1.0);
+  } else {
+    constexpr auto max_value = std::numeric_limits<T>::max();
+    if constexpr (max_value == 0) {
+      return 0.0;
+    } else {
+      return std::clamp(static_cast<double>(value) / static_cast<double>(max_value), 0.0, 1.0);
+    }
+  }
+}
+
+static inline uint8_t ToByte(double value) {
+  return static_cast<uint8_t>(std::lround(std::clamp(value, 0.0, 1.0) * 255.0));
+}
+
+static inline RGBA MakeRgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255U) {
+  RGBA rgba{};
+  rgba.rgba_st.R = r;
+  rgba.rgba_st.G = g;
+  rgba.rgba_st.B = b;
+  rgba.rgba_st.A = a;
+  return rgba;
+}
+
+} // namespace detail
+
 namespace text {
+
 static inline void CreateEmptyFile(const std::string &filename) {
-  std::ofstream file(filename, std::ofstream::out);
-  file << "";
-  file.close();
+  std::ofstream file(filename, std::ios::out | std::ios::trunc);
+  detail::EnsureOpen(file, filename);
 }
 
 static inline void WriteLine(const std::string &filename, const std::string &line) {
-  std::ofstream out_stream(filename, std::ios::app);
-  out_stream << line + "\n";
-  out_stream.close();
+  std::ofstream out_stream(filename, std::ios::out | std::ios::app);
+  detail::EnsureOpen(out_stream, filename);
+  out_stream << line << '\n';
 }
 
 static inline void WriteFile(const std::string &filename, const std::string &content) {
-  std::ofstream file(filename, std::ofstream::out);
-  file << content + "\n";
-  file.close();
+  std::ofstream file(filename, std::ios::out | std::ios::trunc);
+  detail::EnsureOpen(file, filename);
+  file << content << '\n';
 }
+
 } // namespace text
 
 template <typename T, std::size_t W, std::size_t H> class ImgWriter {
-  static_assert(W > 0 && H > 0, "Invalid Image size");
+  static_assert(W > 0 && H > 0, "Invalid image size");
 
 protected:
-  std::array<std::array<T, W>, H> img_data;
+  using ImageData = std::array<std::array<T, W>, H>;
+
+  std::unique_ptr<ImageData> owned_img_data;
+  const ImageData *img_data;
 
 public:
-  explicit ImgWriter(const std::array<std::array<T, W>, H> &a_data) : img_data(a_data) {}
-  explicit ImgWriter(std::array<std::array<T, W>, H> &&a_data) : img_data(std::move(a_data)) {}
-  virtual ~ImgWriter() {}
+  explicit ImgWriter(const ImageData &data) : img_data(&data) {}
+  explicit ImgWriter(ImageData &&data) : owned_img_data(std::make_unique<ImageData>(std::move(data))), img_data(owned_img_data.get()) {}
+  virtual ~ImgWriter() = default;
 
-  virtual void Write(const std::string &a_file_name) = 0;
+  virtual void Write(const std::string &file_name) = 0;
 };
 
-template <typename T> static inline RGBA ToRgba(T val, ColorScaleType type) {
-  static_assert(std::is_arithmetic<T>::value, "Invalid type");
-  auto to_uint8 = [](const double &in) -> uint8_t { return static_cast<uint8_t>(std::round(in)); };
-  const double clamped_val = std::clamp(static_cast<double>(val) / std::numeric_limits<T>::max(), 0.0, 1.0);
+template <typename T> static inline RGBA ToRgba(T value, ColorScaleType type) {
+  const double clamped_val = detail::NormalizePixel(value);
+
   switch (type) {
   case ColorScaleType::RGB: {
-    const uint32_t val_u32 = clamped_val * 0xFFFFFFU;
-    const uint8_t r_val = static_cast<uint8_t>((val_u32 >> 0) & 0XFFU);
-    const uint8_t g_val = static_cast<uint8_t>((val_u32 >> 8) & 0XFFU);
-    const uint8_t b_val = static_cast<uint8_t>((val_u32 >> 16) & 0XFFU);
-    return {r_val, g_val, b_val, 255U};
+    const uint8_t r_val = detail::ToByte(clamped_val);
+    const uint8_t g_val = detail::ToByte(std::sqrt(clamped_val));
+    const uint8_t b_val = detail::ToByte(1.0 - clamped_val);
+    return detail::MakeRgba(r_val, g_val, b_val);
   }
   case ColorScaleType::YUV: {
     uint8_t r_val = 0;
     uint8_t g_val = 0;
     uint8_t b_val = 0;
-    if (0.0 <= clamped_val && clamped_val <= 0.125) {
-      r_val = 0;
-      g_val = 0;
-      b_val = to_uint8((4 * clamped_val + 0.5) * 255);
-    } else if (0.125 < clamped_val && clamped_val <= 0.375) {
-      r_val = 0;
-      g_val = to_uint8((4 * clamped_val - 0.5) * 255);
-      b_val = 1;
-    } else if (0.375 < clamped_val && clamped_val <= 0.625) {
-      r_val = to_uint8((4 * clamped_val - 1.5) * 255);
+    if (clamped_val <= 0.125) {
+      b_val = detail::ToByte(4.0 * clamped_val + 0.5);
+    } else if (clamped_val <= 0.375) {
+      g_val = detail::ToByte(4.0 * clamped_val - 0.5);
+      b_val = 255;
+    } else if (clamped_val <= 0.625) {
+      r_val = detail::ToByte(4.0 * clamped_val - 1.5);
       g_val = 255;
-      b_val = to_uint8((-4 * clamped_val + 2.5) * 255);
-    } else if (0.625 < clamped_val && clamped_val <= 0.875) {
+      b_val = detail::ToByte(-4.0 * clamped_val + 2.5);
+    } else if (clamped_val <= 0.875) {
       r_val = 255;
-      g_val = to_uint8((-4 * clamped_val + 3.5) * 255);
-      b_val = 0;
-    } else if (0.875 < clamped_val && clamped_val <= 1.0) {
-      r_val = to_uint8((-4.0 * clamped_val + 4.5) * 255);
-      g_val = 0;
-      b_val = 0;
+      g_val = detail::ToByte(-4.0 * clamped_val + 3.5);
     } else {
-      r_val = 255;
-      g_val = 0;
-      b_val = 0;
+      r_val = detail::ToByte(-4.0 * clamped_val + 4.5);
     }
-    return {r_val, g_val, b_val, 255U};
+    return detail::MakeRgba(r_val, g_val, b_val);
   }
   case ColorScaleType::GRAYSCALE:
   default: {
-    const uint8_t c_val = to_uint8(clamped_val * 255.0);
-    return {c_val, c_val, c_val, 255U};
+    const uint8_t c_val = detail::ToByte(clamped_val);
+    return detail::MakeRgba(c_val, c_val, c_val);
   }
   }
 }
@@ -119,102 +153,94 @@ namespace ppm {
 
 template <typename T, std::size_t W, std::size_t H, ColorScaleType C = ColorScaleType::GRAYSCALE> class PPMWriter : public ImgWriter<T, W, H> {
 public:
-  explicit PPMWriter(const std::array<std::array<T, W>, H> &a_data) : ImgWriter<T, W, H>(a_data) {}
-  explicit PPMWriter(const std::array<std::array<T, W>, H> &&a_data) : ImgWriter<T, W, H>(std::move(a_data)) {}
+  using ImageData = typename ImgWriter<T, W, H>::ImageData;
 
-  void Write(const std::string &a_file_name) override {
-    std::ofstream fout(a_file_name);
+  explicit PPMWriter(const ImageData &data) : ImgWriter<T, W, H>(data) {}
+  explicit PPMWriter(ImageData &&data) : ImgWriter<T, W, H>(std::move(data)) {}
+
+  void Write(const std::string &file_name) override {
+    std::ofstream fout(file_name, std::ios::out | std::ios::trunc);
+    detail::EnsureOpen(fout, file_name);
+
     fout << "P3\n" << W << ' ' << H << "\n255\n";
-    for (std::size_t j = H - 1; j; --j) {
-      for (std::size_t i = 0; i < W; ++i) {
-        const RGBA rgba = ToRgba(this->img_data[i][j], C);
-        fout << std::to_string(rgba.rgba_st.R) << ' ' << std::to_string(rgba.rgba_st.G) << ' ' << std::to_string(rgba.rgba_st.B) << '\n';
+    for (std::size_t row = H; row-- > 0;) {
+      for (std::size_t col = 0; col < W; ++col) {
+        const RGBA rgba = ToRgba((*this->img_data)[col][row], C);
+        fout << static_cast<int>(rgba.rgba_st.R) << ' ' << static_cast<int>(rgba.rgba_st.G) << ' ' << static_cast<int>(rgba.rgba_st.B) << '\n';
       }
     }
-    fout.close();
   }
 };
+
 } // namespace ppm
 
 namespace bmp {
 
 template <typename T, std::size_t W, std::size_t H> class BMPWriter : public ImgWriter<T, W, H> {
 public:
-  explicit BMPWriter(const std::array<std::array<T, W>, H> &a_data) : ImgWriter<T, W, H>(a_data) {
-    fileheader.offset_data = sizeof(fileheader.offset_data) + sizeof(infoheader);
-    fileheader.file_size = fileheader.offset_data + W * H * sizeof(RGBA) + sizeof(colorheader);
-    infoheader.size = sizeof(infoheader);
-    infoheader.width = W;
-    infoheader.height = H;
-    infoheader.compression = 0;
-    infoheader.bit_count = 32;
-  }
+  using ImageData = typename ImgWriter<T, W, H>::ImageData;
 
-  explicit BMPWriter(const std::array<std::array<T, W>, H> &&a_data) : ImgWriter<T, W, H>(std::move(a_data)) {
-    fileheader.offset_data = sizeof(fileheader.offset_data) + sizeof(infoheader);
-    fileheader.file_size = fileheader.offset_data + W * H * sizeof(RGBA) + sizeof(colorheader);
-    infoheader.size = sizeof(infoheader);
-    infoheader.width = W;
-    infoheader.height = H;
-    infoheader.compression = 0;
-    infoheader.bit_count = 32;
-  }
+  explicit BMPWriter(const ImageData &data) : ImgWriter<T, W, H>(data) {}
+  explicit BMPWriter(ImageData &&data) : ImgWriter<T, W, H>(std::move(data)) {}
 
-  template <ColorScaleType C = ColorScaleType::GRAYSCALE> void Write(const std::string &a_file_name) {
-    std::array<RGBA, W * H> flattened_data;
-    for (std::size_t i = W - 1; i > 0; --i) {
-      for (std::size_t j = H - 1; j > 0; --j) {
-        flattened_data[i * H + j] = ToRgba(this->img_data[j][i], C);
+  template <ColorScaleType C = ColorScaleType::GRAYSCALE> void Write(const std::string &file_name) {
+    BMPFileHeader file_header{};
+    BMPInfoHeader info_header{};
+
+    info_header.size = sizeof(BMPInfoHeader);
+    info_header.width = static_cast<int32_t>(W);
+    info_header.height = static_cast<int32_t>(H);
+    info_header.bit_count = 32;
+    info_header.compression = 0;
+    info_header.size_image = static_cast<uint32_t>(W * H * sizeof(RGBA));
+
+    file_header.offset_data = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader);
+    file_header.file_size = file_header.offset_data + info_header.size_image;
+
+    std::ofstream fout(file_name, std::ios::out | std::ios::binary | std::ios::trunc);
+    detail::EnsureOpen(fout, file_name);
+    fout.write(reinterpret_cast<const char *>(&file_header), sizeof(file_header));
+    fout.write(reinterpret_cast<const char *>(&info_header), sizeof(info_header));
+
+    for (std::size_t row = H; row-- > 0;) {
+      for (std::size_t col = 0; col < W; ++col) {
+        const RGBA rgba = ToRgba((*this->img_data)[col][row], C);
+        fout.write(reinterpret_cast<const char *>(&rgba), sizeof(rgba));
       }
     }
-    std::fstream fout;
-    fout = std::fstream(a_file_name, std::ios::out | std::ios::binary);
-    fout.write(reinterpret_cast<const char *>(&fileheader), sizeof(fileheader));
-    fout.write(reinterpret_cast<const char *>(&infoheader), sizeof(infoheader));
-    fout.write(reinterpret_cast<const char *>(flattened_data.data()), flattened_data.size() * sizeof(RGBA));
-    fout.write(reinterpret_cast<const char *>(&colorheader), sizeof(colorheader));
-    fout.close();
   }
 
-  void Write(const std::string &a_file_name) override { Write<ColorScaleType::GRAYSCALE>(a_file_name); }
-
-private:
-  BMPFileHeader fileheader;
-  BMPInfoHeader infoheader;
-  BMPColorHeader colorheader;
+  void Write(const std::string &file_name) override { Write<ColorScaleType::GRAYSCALE>(file_name); }
 };
+
 } // namespace bmp
 
 namespace wave {
+
 class MonoWriter {
 public:
-  explicit MonoWriter(const std::vector<int16_t> &a_data) {
-    wav_data.resize(a_data.size() * sizeof(int16_t));
-    std::memcpy(wav_data.data(), a_data.data(), wav_data.size());
-    header.chunk_size = wav_data.size() + 36;
-    header.sub_chunk_1_size = 16;
-    header.audio_format = 1;
-    header.num_of_channels = 1;
-    header.sample_rate = 44100;
-    header.bytes_per_second = 88200;
-    header.block_allign = 2;
-    header.bit_depth = 16;
-    header.sub_chunk_2_size = wav_data.size();
-  }
+  explicit MonoWriter(const std::vector<int16_t> &data) : wav_data(data) {}
 
-  void Write(const std::string &a_file_name) {
-    std::vector<char> data(wav_data.size() + sizeof(WavFileHeader));
-    memcpy(data.data(), reinterpret_cast<const uint8_t *>(&header), sizeof(WavFileHeader));
-    memcpy(data.data() + sizeof(WavFileHeader), wav_data.data(), wav_data.size());
-    std::ofstream fout(a_file_name, std::ios::out | std::ios::binary);
-    fout.write(data.data(), data.size());
-    fout.close();
+  void Write(const std::string &file_name) {
+    WavFileHeader header{};
+    header.num_of_channels = 1;
+    header.sample_rate = SAMPLE_RATE;
+    header.bit_depth = BITDEPTH;
+    header.block_allign = static_cast<uint16_t>(header.num_of_channels * header.bit_depth / 8);
+    header.bytes_per_second = header.sample_rate * header.block_allign;
+    header.sub_chunk_2_size = static_cast<uint32_t>(wav_data.size() * sizeof(int16_t));
+    header.chunk_size = 36U + header.sub_chunk_2_size;
+
+    std::ofstream fout(file_name, std::ios::out | std::ios::binary | std::ios::trunc);
+    detail::EnsureOpen(fout, file_name);
+    fout.write(reinterpret_cast<const char *>(&header), sizeof(header));
+    fout.write(reinterpret_cast<const char *>(wav_data.data()), static_cast<std::streamsize>(header.sub_chunk_2_size));
   }
 
 private:
-  WavFileHeader header;
-  std::vector<char> wav_data;
+  std::vector<int16_t> wav_data;
 };
+
 } // namespace wave
 } // namespace filewriter
 

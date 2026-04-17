@@ -1,18 +1,25 @@
-project('SoundLearner', 'cpp',
-        default_options : [
-                           'cpp_std=c++2a',
-                           'optimization=0',
-                           'warning_level=3',
-                           'werror=true',
-                           'b_coverage=true',
-                           'b_lto=true'
-                          ]
+project(
+  'SoundLearner',
+  'cpp',
+  version : '0.1.0',
+  license : 'MIT',
+  meson_version : '>=1.2.0',
+  default_options : [
+    'cpp_std=c++23',
+    'warning_level=3',
+    'werror=false',
+  ],
 )
-add_project_arguments('-pedantic', language : 'cpp')
 
-# pthread_dep = dependency('threads')
-subdir('include/')
-subdir('instrument/')
-subdir('dataset_builder/')
-subdir('player/')
+cpp = meson.get_compiler('cpp')
+root_inc = include_directories('.')
 
+add_project_arguments(
+  cpp.get_supported_arguments('-pedantic'),
+  language : 'cpp',
+)
+
+subdir('include')
+subdir('instrument')
+subdir('dataset_builder')
+subdir('player')

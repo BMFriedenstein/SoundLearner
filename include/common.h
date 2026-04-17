@@ -15,6 +15,8 @@
 #ifndef INCLUDE_COMMON_H_
 #define INCLUDE_COMMON_H_
 
+#include <cstdint>
+
 // Application exit codes
 constexpr uint32_t EXIT_NORMAL = 0;
 constexpr uint32_t EXIT_BAD_ARGS = 1;

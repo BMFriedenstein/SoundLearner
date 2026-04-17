@@ -17,6 +17,7 @@
 #include <charconv>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <random>
 #include <string>
 #include <string_view>
@@ -91,6 +92,8 @@ int main(int argc, char **argv) {
 }
 
 void DataBuilder::DataBuildJob(double velocity, double freq, std::size_t index) {
+  using SpectrogramImage = std::array<std::array<double, img_resolution>, img_resolution>;
+
   instrument::InstrumentModel rand_instrument(coupled_oscilators, uncoupled_oscilators, std::to_string(index));
   bool sample_has_distorted = false;
   std::vector<double> sample_double = rand_instrument.GenerateSignal(velocity, freq, num_samples);
@@ -104,22 +107,24 @@ void DataBuilder::DataBuildJob(double velocity, double freq, std::size_t index) 
 
   // Write out the spectrogram to a image file
   std::cout << "calc spectogram\n";
-  const auto spectogram = fft::spectrogram::CreateSpectrogram<img_resolution>(sample_double);
+  auto spectogram = std::make_unique<SpectrogramImage>();
+  fft::spectrogram::CreateSpectrogram<img_resolution>(sample_double, *spectogram);
   std::cout << "writing bmp\n";
-  filewriter::bmp::BMPWriter<double, img_resolution, img_resolution> bmp_writer(spectogram);
+  filewriter::bmp::BMPWriter<double, img_resolution, img_resolution> bmp_writer(*spectogram);
   bmp_writer.Write<ColorScaleType::RGB>(file_name + "_rgb.bmp");
   bmp_writer.Write<ColorScaleType::YUV>(file_name + "_yuv.bmp");
   bmp_writer.Write<ColorScaleType::GRAYSCALE>(file_name + "_grey.bmp");
   std::cout << "writing ppm\n";
-  filewriter::ppm::PPMWriter<double, img_resolution, img_resolution, ColorScaleType::RGB> ppm_writer(std::move(spectogram));
+  filewriter::ppm::PPMWriter<double, img_resolution, img_resolution, ColorScaleType::RGB> ppm_writer(*spectogram);
   ppm_writer.Write(file_name + ".ppm");
 
-  const auto mel_spectogram = fft::spectrogram::CreateMelSpectrogram<img_resolution>(sample_double);
+  auto mel_spectogram = std::make_unique<SpectrogramImage>();
+  fft::spectrogram::CreateMelSpectrogram<img_resolution>(sample_double, *mel_spectogram);
   std::cout << "writing bmp\n";
-  filewriter::bmp::BMPWriter<double, img_resolution, img_resolution> mbmp_writer(mel_spectogram);
+  filewriter::bmp::BMPWriter<double, img_resolution, img_resolution> mbmp_writer(*mel_spectogram);
   mbmp_writer.Write("mel" + file_name + ".bmp");
   std::cout << "writing ppm\n";
-  filewriter::ppm::PPMWriter<double, img_resolution, img_resolution> mppm_writer(std::move(mel_spectogram));
+  filewriter::ppm::PPMWriter<double, img_resolution, img_resolution> mppm_writer(*mel_spectogram);
   mppm_writer.Write("mel" + file_name + ".ppm");
 
   // Write out meta and data files

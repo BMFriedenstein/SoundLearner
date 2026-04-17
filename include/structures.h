@@ -15,6 +15,8 @@
 #ifndef INCLUDE_STRUCTURES_H_
 #define INCLUDE_STRUCTURES_H_
 
+#include <cstdint>
+
 /** Wav format
       Positions    Sample Value    Description
       1 - 4   "RIFF"  Marks the file as a riff file.
@@ -37,21 +39,23 @@
       41-44   File size (data)    Size of the data section.
       Sample values are given above for a 16-bit stereo source.
 */
+#pragma pack(push, 1)
+
 struct WavFileHeader {
   char riff[4] = {'R', 'I', 'F', 'F'};
-  uint32_t chunk_size;
+  uint32_t chunk_size = 0;
   char wave[4] = {'W', 'A', 'V', 'E'};
   char format[4] = {'f', 'm', 't', ' '};
-  uint32_t sub_chunk_1_size;
-  uint16_t audio_format;
-  uint16_t num_of_channels;
-  uint32_t sample_rate;
-  uint32_t bytes_per_second;
-  uint16_t block_allign;
-  uint16_t bit_depth;
+  uint32_t sub_chunk_1_size = 16;
+  uint16_t audio_format = 1;
+  uint16_t num_of_channels = 1;
+  uint32_t sample_rate = 44100;
+  uint32_t bytes_per_second = 88200;
+  uint16_t block_allign = 2;
+  uint16_t bit_depth = 16;
   char sub_chunk_2_id[4] = {'d', 'a', 't', 'a'};
-  uint32_t sub_chunk_2_size;
-} __attribute__((packed));
+  uint32_t sub_chunk_2_size = 0;
+};
 
 union RGBA {
   struct RSGBSt {
@@ -59,7 +63,7 @@ union RGBA {
     uint8_t G;
     uint8_t R;
     uint8_t A;
-  } __attribute__((packed)) rgba_st;
+  } rgba_st;
   uint32_t rgba;
 };
 enum class ColorScaleType { GRAYSCALE, RGB, YUV };
@@ -70,12 +74,12 @@ struct BMPFileHeader {
   uint16_t reserved1 = 0;      // Reserved, always 0
   uint16_t reserved2 = 0;      // Reserved, always 0
   uint32_t offset_data = 0;    // Start position of pixel data (bytes from the beginning of the file)
-} __attribute__((packed));
+};
 
 struct BMPInfoHeader {
   uint32_t size{0};        // Size of this header (in bytes)
-  uint32_t width{0};       // width of bitmap in pixels
-  uint32_t height{0};      // width of bitmap in pixels
+  int32_t width{0};        // width of bitmap in pixels
+  int32_t height{0};       // height of bitmap in pixels
                            //       (if positive, bottom-up, with origin in lower left corner)
                            //       (if negative, top-down, with origin in upper left corner)
   uint16_t planes{1};      // No. of planes for the target device, this is always 1
@@ -89,7 +93,7 @@ struct BMPInfoHeader {
                                 // the max number of colors allowed by bit_count
   uint32_t colors_important{0}; // No. of colors used for displaying the bitmap.
                                 // If 0 all colors are required
-} __attribute__((packed));
+};
 
 struct BMPColorHeader {
   uint32_t red_mask{0x00ff0000};         // Bit mask for the red channel
@@ -98,6 +102,8 @@ struct BMPColorHeader {
   uint32_t alpha_mask{0xff000000};       // Bit mask for the alpha channel
   uint32_t color_space_type{0x73524742}; // Default "sRGB" (0x73524742)
   uint32_t unused[16]{0};                // Unused data for sRGB color space
-} __attribute__((packed));
+};
+
+#pragma pack(pop)
 
 #endif // INCLUDE_STRUCTURES_H_
