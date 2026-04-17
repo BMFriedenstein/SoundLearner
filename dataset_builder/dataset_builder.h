@@ -40,9 +40,11 @@ private:
 public:
   void DataBuildJob(double velocity, double freq, std::size_t index);
 
-  DataBuilder(std::size_t sample_time_secs, std::size_t coupled_oscilators, std::size_t uncoupled_oscilators = 0, std::size_t starting_index = 0,
-              std::size_t img_resolution = 512U, bool write_ppm_previews = false, std::size_t rand_seed = std::random_device{}())
-      : rand_eng(rand_seed), num_samples(SAMPLE_RATE * sample_time_secs), coupled_oscilators(coupled_oscilators),
-        uncoupled_oscilators(uncoupled_oscilators), starting_index(starting_index), img_resolution(img_resolution), write_ppm_previews(write_ppm_previews) {}
+  DataBuilder(std::size_t sample_time_secs, std::size_t coupled_count, std::size_t uncoupled_count = 0,
+              std::size_t first_index = 0, std::size_t preview_resolution = 512U, bool should_write_ppm_previews = false,
+              std::size_t rand_seed = std::random_device{}())
+      : rand_eng(rand_seed), num_samples(SAMPLE_RATE * sample_time_secs), coupled_oscilators(coupled_count),
+        uncoupled_oscilators(uncoupled_count), starting_index(first_index), img_resolution(preview_resolution),
+        write_ppm_previews(should_write_ppm_previews) {}
 };
 #endif // DATASET_BUILDER_H_

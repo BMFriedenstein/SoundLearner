@@ -62,7 +62,8 @@ void WriteFile(const std::string &filename, const std::string &content) {
 
 namespace image {
 
-Image::Image(std::size_t width, std::size_t height) : width(width), height(height), pixels(width * height) {}
+Image::Image(std::size_t image_width, std::size_t image_height)
+    : width(image_width), height(image_height), pixels(image_width * image_height) {}
 
 } // namespace image
 

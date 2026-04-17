@@ -139,7 +139,7 @@ static inline void OneSidedFFT(std::vector<double> &in_out_data, double freq, Wi
 
   for (std::size_t i = 0; i < input_size; ++i) {
     const double magnitude{std::hypot(fft_out_buffer[i][detail::kReal], fft_out_buffer[i][detail::kImag])};
-    const double power_density{std::pow(magnitude, 2) / (2 * input_size * freq)};
+    const double power_density{std::pow(magnitude, 2) / (2.0 * static_cast<double>(input_size) * freq)};
     in_out_data[i] = -10 * std::log10(power_density);
   }
 
@@ -172,6 +172,7 @@ static inline SpectrogramBuffer CreateSpectrogram(const std::vector<double> &sou
 static inline SpectrogramBuffer CreateMelSpectrogram(const std::vector<double> &source_signal, std::size_t resolution, std::size_t fft_size_multiplier = 25) {
   const std::size_t fft_bin_count = resolution * fft_size_multiplier;
   const double log_max = std::log2(static_cast<double>(fft_bin_count + 1));
+  const double resolution_as_double = static_cast<double>(resolution);
   SpectrogramBuffer mel_spectrogram(resolution * resolution);
   std::vector<double> fft_window(fft_bin_count);
   const auto increment_size = source_signal.size() / resolution;
@@ -185,8 +186,8 @@ static inline SpectrogramBuffer CreateMelSpectrogram(const std::vector<double> &
     OneSidedFFT(fft_window, SAMPLE_RATE);
 
     for (std::size_t y = 0; y < resolution; ++y) {
-      const double log_start = std::pow(2.0, (static_cast<double>(y) * log_max) / resolution) - 1.0;
-      const double log_end = std::pow(2.0, (static_cast<double>(y + 1) * log_max) / resolution) - 1.0;
+      const double log_start = std::pow(2.0, (static_cast<double>(y) * log_max) / resolution_as_double) - 1.0;
+      const double log_end = std::pow(2.0, (static_cast<double>(y + 1) * log_max) / resolution_as_double) - 1.0;
       const auto bin_start = std::min<std::size_t>(static_cast<std::size_t>(std::floor(log_start)), fft_bin_count - 1);
       const auto bin_end = std::min<std::size_t>(std::max<std::size_t>(static_cast<std::size_t>(std::ceil(log_end)), bin_start + 1), fft_bin_count);
       const auto bin_count = bin_end - bin_start;

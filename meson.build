@@ -23,7 +23,11 @@ if not fftw_dep.found()
 endif
 
 add_project_arguments(
-  cpp.get_supported_arguments('-pedantic'),
+  cpp.get_supported_arguments(
+    '-pedantic',
+    '-Wconversion',
+    '-Wshadow',
+  ),
   language : 'cpp',
 )
 

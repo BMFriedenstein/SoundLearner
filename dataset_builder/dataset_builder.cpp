@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
   }
 
   const double note_played_freq = 1000.0;
-  const double velocity = 1.0 / (coupled_oscilators + uncoupled_oscilators);
+  const double velocity = 1.0 / static_cast<double>(coupled_oscilators + uncoupled_oscilators);
   auto builder = DataBuilder(sample_time, coupled_oscilators, uncoupled_oscilators, starting_point, img_resolution, write_ppm_previews);
   for (std::size_t i = 0; i < dataset_size; ++i) {
     std::cout << "IDX: " << i << "...\n";

@@ -69,7 +69,7 @@ void InstrumentModel::AddTunedString(const oscillator::StringOccilator &&a_tuned
  * @returns: none
  */
 void InstrumentModel::AddUntunedString(bool is_coupled) {
-  sound_strings.push_back(std::move(oscillator::StringOccilator::CreateUntunedString(is_coupled)));
+  sound_strings.push_back(oscillator::StringOccilator::CreateUntunedString(is_coupled));
 }
 
 /*

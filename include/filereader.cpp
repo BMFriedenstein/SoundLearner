@@ -26,7 +26,12 @@ WaveReaderC::WaveReaderC(const std::string &a_filename) : filename(a_filename) {
   wav_file.unsetf(std::ios::skipws);
 
   wav_file.seekg(0, std::ios::end);
-  std::size_t file_size = wav_file.tellg();
+  const auto file_end = wav_file.tellg();
+  if (file_end <= 0) {
+    std::cout << "ERROR!!! Could not open wave file " << a_filename << " file size invalid " << std::endl;
+    exit(EXIT_READ_FILE_FAILED);
+  }
+  const auto file_size = static_cast<std::size_t>(file_end);
   wav_file.seekg(0, std::ios::beg);
 
   if (file_size <= sizeof(WavFileHeader)) {
