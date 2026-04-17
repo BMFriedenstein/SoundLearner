@@ -2,7 +2,7 @@
 
 SoundLearner is an experiment in learning a compact synthesizer model from audio.
 
-The project generates labelled audio from an oscillator-based instrument model, extracts fixed-size audio feature tensors, and aims to train a model that maps an input sound back to synthesizer parameters. The long-term goal is not just to classify sounds, but to recover enough structure that the player can resynthesize similar sounds from MIDI.
+The project generates labelled audio from an oscillator-based instrument model, extracts fixed-size audio feature tensors, and aims to train a model that maps an input sound back to synthesizer parameters. The long-term goal is not just to classify sounds, but to recover enough structure that the player can resynthesize similar sounds from MIDI, embedded instruments, and eventually DAW plugin workflows.
 
 ![SoundLearner](SoundLearner.jpg)
 
@@ -18,6 +18,17 @@ The repo currently contains:
 4. `deep_trainer` - legacy TensorFlow training scripts kept for reference.
 5. `player` - instrument model loading and WAV rendering.
 6. `Analyse` - older analysis scripts and experiments.
+
+## Playback Roadmap
+
+The model is only useful if it can become an instrument. There are two important playback targets:
+
+1. Raspberry Pi digital piano app.
+2. DAW plugin, likely as a modern VST-style shared library.
+
+The Raspberry Pi app is the first practical target after training succeeds. It should load a trained instrument model, accept MIDI input from a digital piano or MIDI controller, and render audio in real time to an audio device. This is the main "can this become an instrument?" milestone.
+
+The DAW plugin is a longer-term target. A VST-style plugin would let the learned model live inside modern music production workflows, but it will likely require substantial extra work around plugin SDKs, realtime-safe audio processing, host automation, packaging, presets, UI, and cross-platform builds.
 
 ## Build
 
@@ -342,3 +353,8 @@ Useful architecture references:
 - [ ] Playback to audio device.
 - [ ] Add polyphonic playback.
 - [ ] Add stereoization.
+- [ ] Build Raspberry Pi MIDI playback app for digital piano use.
+- [ ] Add low-latency realtime audio path.
+- [ ] Package learned models for embedded playback.
+- [ ] Explore modern VST-style DAW plugin architecture.
+- [ ] Build DAW plugin shared library and host integration.

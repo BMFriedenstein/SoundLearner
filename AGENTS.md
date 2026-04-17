@@ -6,6 +6,8 @@ This file is for future LLM/Codex sessions working on SoundLearner.
 
 SoundLearner is trying to learn a compact oscillator/synthesizer representation from audio. Generated oscillator audio provides labelled training data. Real, non-generated WAV files should be used as the real performance benchmark.
 
+After training works, the first serious playback target is a Raspberry Pi app for digital piano/MIDI-controller input and realtime audio output. A modern VST-style DAW plugin is also planned, but treat that as long-term work because it will require plugin SDK integration, realtime-safe DSP rules, host automation, packaging, UI, and cross-platform build decisions.
+
 The important architectural direction is:
 
 ```text
@@ -120,3 +122,10 @@ The README currently recommends a supervised encoder-regressor baseline before d
 - Consider conditional diffusion only after the baseline shows where ambiguity hurts.
 
 Real audio evaluation should compare resynthesized output against the source audio using spectral and perceptual metrics, because real piano/bird/etc. clips do not have ground-truth oscillator labels.
+
+## Playback Roadmap
+
+- First post-training target: Raspberry Pi app for model playback from digital piano MIDI input.
+- The Pi player should prioritize low latency, stable realtime audio, model loading, MIDI handling, and practical deployment.
+- Long-term target: DAW plugin as a modern VST-style shared library.
+- The plugin work should be planned separately from the core training milestone because it is a large product/platform project rather than just another executable.
