@@ -19,11 +19,9 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <fstream>
 #include <limits>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -36,11 +34,7 @@ namespace filewriter {
 
 namespace detail {
 
-static inline void EnsureOpen(const std::ofstream &stream, const std::string &filename) {
-  if (!stream) {
-    throw std::runtime_error("Unable to open output file: " + filename);
-  }
-}
+void EnsureOpen(const std::ofstream &stream, const std::string &filename);
 
 template <typename T> static inline double NormalizePixel(T value) {
   static_assert(std::is_arithmetic_v<T>, "Image pixels must be arithmetic values");
@@ -57,39 +51,16 @@ template <typename T> static inline double NormalizePixel(T value) {
   }
 }
 
-static inline uint8_t ToByte(double value) {
-  return static_cast<uint8_t>(std::lround(std::clamp(value, 0.0, 1.0) * 255.0));
-}
-
-static inline RGBA MakeRgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255U) {
-  RGBA rgba{};
-  rgba.rgba_st.R = r;
-  rgba.rgba_st.G = g;
-  rgba.rgba_st.B = b;
-  rgba.rgba_st.A = a;
-  return rgba;
-}
+uint8_t ToByte(double value);
+RGBA MakeRgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255U);
 
 } // namespace detail
 
 namespace text {
 
-static inline void CreateEmptyFile(const std::string &filename) {
-  std::ofstream file(filename, std::ios::out | std::ios::trunc);
-  detail::EnsureOpen(file, filename);
-}
-
-static inline void WriteLine(const std::string &filename, const std::string &line) {
-  std::ofstream out_stream(filename, std::ios::out | std::ios::app);
-  detail::EnsureOpen(out_stream, filename);
-  out_stream << line << '\n';
-}
-
-static inline void WriteFile(const std::string &filename, const std::string &content) {
-  std::ofstream file(filename, std::ios::out | std::ios::trunc);
-  detail::EnsureOpen(file, filename);
-  file << content << '\n';
-}
+void CreateEmptyFile(const std::string &filename);
+void WriteLine(const std::string &filename, const std::string &line);
+void WriteFile(const std::string &filename, const std::string &content);
 
 } // namespace text
 
@@ -219,23 +190,9 @@ namespace wave {
 
 class MonoWriter {
 public:
-  explicit MonoWriter(const std::vector<int16_t> &data) : wav_data(data) {}
+  explicit MonoWriter(const std::vector<int16_t> &data);
 
-  void Write(const std::string &file_name) {
-    WavFileHeader header{};
-    header.num_of_channels = 1;
-    header.sample_rate = SAMPLE_RATE;
-    header.bit_depth = BITDEPTH;
-    header.block_allign = static_cast<uint16_t>(header.num_of_channels * header.bit_depth / 8);
-    header.bytes_per_second = header.sample_rate * header.block_allign;
-    header.sub_chunk_2_size = static_cast<uint32_t>(wav_data.size() * sizeof(int16_t));
-    header.chunk_size = 36U + header.sub_chunk_2_size;
-
-    std::ofstream fout(file_name, std::ios::out | std::ios::binary | std::ios::trunc);
-    detail::EnsureOpen(fout, file_name);
-    fout.write(reinterpret_cast<const char *>(&header), sizeof(header));
-    fout.write(reinterpret_cast<const char *>(wav_data.data()), static_cast<std::streamsize>(header.sub_chunk_2_size));
-  }
+  void Write(const std::string &file_name);
 
 private:
   std::vector<int16_t> wav_data;

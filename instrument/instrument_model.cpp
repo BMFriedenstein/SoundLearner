@@ -14,6 +14,7 @@
 
 #include "instrument/instrument_model.h"
 
+#include <algorithm>
 #include <iostream>
 #include <limits>
 #include <random>
@@ -21,6 +22,12 @@
 #include <utility>
 
 namespace instrument {
+
+namespace {
+bool CoupledStringsFirst(const std::unique_ptr<oscillator::StringOccilator> &a_osc, const std::unique_ptr<oscillator::StringOccilator> &b_osc) {
+  return a_osc->IsCoupled() && !b_osc->IsCoupled();
+}
+} // namespace
 
 InstrumentModel::InstrumentModel(const std::vector<std::string> &csv_strings, const std::string &instrument_name) : name(instrument_name) {
   sound_strings.reserve(csv_strings.size());
@@ -167,6 +174,31 @@ std::vector<int16_t> InstrumentModel::GenerateIntSignal(double velocity, double 
 void InstrumentModel::AmendGain(double factor) {
   std::for_each(sound_strings.begin(), sound_strings.end(), [&factor](const auto &s) { s->AmendGain(factor); });
 }
+
+void InstrumentModel::SortStringsByFreq() {
+  std::sort(sound_strings.begin(), sound_strings.end(), [](const auto &a_osc, const auto &b_osc) {
+    if (CoupledStringsFirst(a_osc, b_osc)) {
+      return true;
+    }
+    if (a_osc->IsCoupled() == b_osc->IsCoupled()) {
+      return a_osc->GetFreqFactor() > b_osc->GetFreqFactor();
+    }
+    return false;
+  });
+}
+
+void InstrumentModel::SortStringsByAmplitude() {
+  std::sort(sound_strings.begin(), sound_strings.end(), [](const auto &a_osc, const auto &b_osc) {
+    if (CoupledStringsFirst(a_osc, b_osc)) {
+      return true;
+    }
+    if (a_osc->IsCoupled() == b_osc->IsCoupled()) {
+      return a_osc->GetAmpFactor() > b_osc->GetAmpFactor();
+    }
+    return false;
+  });
+}
+
 static std::mt19937 stat_rand_eng = std::mt19937(std::random_device{}());
 /*
  * Create a new instrument slightly mutated from this instrument model.

@@ -15,7 +15,6 @@
 #ifndef INSTRUMENT_INSTRUMENT_MODEL_H_
 #define INSTRUMENT_INSTRUMENT_MODEL_H_
 
-#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -51,29 +50,8 @@ private:
   std::vector<std::unique_ptr<oscillator::StringOccilator>> sound_strings;
   std::string name;
 
-  inline void SortStringsByFreq() {
-    std::sort(sound_strings.begin(), sound_strings.end(), [](const auto &a_osc, const auto &b_osc) -> bool {
-      if (a_osc->IsCoupled() && !b_osc->IsCoupled()) {
-        return true;
-      } else if (a_osc->IsCoupled() == b_osc->IsCoupled()) {
-        return a_osc->GetFreqFactor() > b_osc->GetFreqFactor();
-      } else {
-        return false;
-      }
-    });
-  }
-
-  inline void SortStringsByAmplitude() {
-    std::sort(sound_strings.begin(), sound_strings.end(), [](const auto &a_osc, const auto &b_osc) -> bool {
-      if (a_osc->IsCoupled() && !b_osc->IsCoupled()) {
-        return true;
-      } else if (a_osc->IsCoupled() == b_osc->IsCoupled()) {
-        return a_osc->GetAmpFactor() > b_osc->GetAmpFactor();
-      } else {
-        return false;
-      }
-    });
-  }
+  void SortStringsByFreq();
+  void SortStringsByAmplitude();
 };
 } // namespace instrument
 

@@ -31,22 +31,25 @@
 #include "include/common.h"
 
 namespace fft {
-static inline constexpr uint16_t max_fft_size = 0xFFFFU;
-static inline constexpr uint8_t real = 0;
-static inline constexpr uint8_t imag = 1;
-static double fft_spectogram_min = 50.0;
-static double fft_spectogram_max = 190.0;
-static std::array<fftw_complex, max_fft_size> fft_in_buffer;
-static std::array<fftw_complex, max_fft_size> fft_out_buffer;
-static std::array<double, max_fft_size> scratch_buffer = {};
+namespace detail {
+inline constexpr std::size_t kMaxFftSize = 0xFFFFU;
+inline constexpr uint8_t kReal = 0;
+inline constexpr uint8_t kImag = 1;
+inline constexpr double kSpectrogramDisplayMin = 50.0;
+inline constexpr double kSpectrogramDisplayMax = 190.0;
+
+inline std::array<fftw_complex, kMaxFftSize> fft_in_buffer;
+inline std::array<fftw_complex, kMaxFftSize> fft_out_buffer;
+inline std::array<double, kMaxFftSize> scratch_buffer = {};
+} // namespace detail
 
 enum class WindowTypes { NONE, HANN, FLAT_TOP, UNIFORM, FORCE, HAMMING, KAISER_BESSEL, EXPONENTIAL };
 
-template <std::size_t A> static inline void WindowFunction(std::array<double, A> *in_out_data, WindowTypes window_function) {
+template <std::size_t A> static inline void WindowFunction(std::array<double, A> &in_out_data, WindowTypes window_function) {
   switch (window_function) {
   case WindowTypes::HANN: {
     auto i{0U};
-    std::transform(in_out_data->begin(), in_out_data->end(), in_out_data->begin(),
+    std::transform(in_out_data.begin(), in_out_data.end(), in_out_data.begin(),
                    [&i](auto in_val) { return in_val * std::pow(std::sin(i++ / (2 * M_PI / A)), 2); });
   } break;
 
@@ -64,29 +67,29 @@ template <std::size_t A> static inline void WindowFunction(std::array<double, A>
 }
 
 template <std::size_t A>
-static inline void OneSidedFFT(std::array<double, A> *in_out_data, double freq, WindowTypes window_function = WindowTypes::NONE) {
+static inline void OneSidedFFT(std::array<double, A> &in_out_data, double freq, WindowTypes window_function = WindowTypes::NONE) {
   constexpr std::size_t in_fft_size = 2 * A;
-  static_assert(in_fft_size < max_fft_size);
+  static_assert(in_fft_size < detail::kMaxFftSize);
 
   WindowFunction(in_out_data, window_function);
 
   // Prepare input/output buffers for fft.
-  std::memset(fft_in_buffer.data(), 0, sizeof(fftw_complex) * 2 * A);
-  std::memset(fft_out_buffer.data(), 0, sizeof(fftw_complex) * 2 * A);
+  std::memset(detail::fft_in_buffer.data(), 0, sizeof(fftw_complex) * 2 * A);
+  std::memset(detail::fft_out_buffer.data(), 0, sizeof(fftw_complex) * 2 * A);
   for (auto i{0U}; i < A; ++i) {
-    fft_in_buffer[i][real] = (*in_out_data)[i];
+    detail::fft_in_buffer[i][detail::kReal] = in_out_data[i];
   }
 
   // Perform fft
-  fftw_plan p = fftw_plan_dft_1d(static_cast<int>(in_fft_size), fft_in_buffer.data(), fft_out_buffer.data(), FFTW_FORWARD, FFTW_ESTIMATE);
+  fftw_plan p = fftw_plan_dft_1d(static_cast<int>(in_fft_size), detail::fft_in_buffer.data(), detail::fft_out_buffer.data(), FFTW_FORWARD, FFTW_ESTIMATE);
   fftw_execute(p);
 
   // Calculate power fft and place on return buffer.
   for (auto i{0U}; i < A; ++i) {
-    const double magnitude{std::abs(std::complex<double>(fft_out_buffer[i][real], fft_out_buffer[i][imag]))};
+    const double magnitude{std::hypot(detail::fft_out_buffer[i][detail::kReal], detail::fft_out_buffer[i][detail::kImag])};
     const double power_density{std::pow(magnitude, 2) / (2 * A * freq)};
     const double log_val{-10 * std::log10(power_density)};
-    (*in_out_data)[i] = log_val;
+    in_out_data[i] = log_val;
   }
 
   // Cleanup FFTW object.
@@ -101,13 +104,13 @@ static inline double NormalizeSpectrogramValue(double value) {
     return 0.0;
   }
 
-  const double normalized = (value - fft_spectogram_min) / (fft_spectogram_max - fft_spectogram_min);
+  const double normalized = (value - detail::kSpectrogramDisplayMin) / (detail::kSpectrogramDisplayMax - detail::kSpectrogramDisplayMin);
   return std::clamp(1.0 - normalized, 0.0, 1.0);
 }
 
 template <std::size_t X, std::size_t Y = X>
 static inline void CreateSpectrogram(const std::vector<double> &source_signal, std::array<std::array<double, Y>, X> &out_spectogram) {
-  static_assert((Y * 2) < max_fft_size);
+  static_assert((Y * 2) < detail::kMaxFftSize);
 
   const std::size_t increment_size = source_signal.size() / X;
 
@@ -115,13 +118,13 @@ static inline void CreateSpectrogram(const std::vector<double> &source_signal, s
   for (auto window = out_spectogram.begin(); window != out_spectogram.end(); ++window) {
     const auto copy_size = std::min(X, source_signal.size() - source_idx);
 
-    std::memcpy(scratch_buffer.data(), &source_signal[source_idx], sizeof(double) * copy_size);
-    std::fill(scratch_buffer.begin() + copy_size, scratch_buffer.begin() + X, 0.0);
+    std::memcpy(detail::scratch_buffer.data(), &source_signal[source_idx], sizeof(double) * copy_size);
+    std::fill(detail::scratch_buffer.begin() + copy_size, detail::scratch_buffer.begin() + X, 0.0);
 
-    OneSidedFFT(reinterpret_cast<std::array<double, X> *>(&scratch_buffer), SAMPLE_RATE);
+    OneSidedFFT(*reinterpret_cast<std::array<double, X> *>(&detail::scratch_buffer), SAMPLE_RATE);
 
     // Normalize to values between 0.0 and 1.0
-    std::transform(scratch_buffer.begin(), scratch_buffer.begin() + X, window->begin(),
+    std::transform(detail::scratch_buffer.begin(), detail::scratch_buffer.begin() + X, window->begin(),
                    [](const auto &val) { return NormalizeSpectrogramValue(val); });
 
     source_idx += increment_size;
@@ -137,7 +140,7 @@ static inline std::array<std::array<double, Y>, X> CreateSpectrogram(const std::
 
 template <std::size_t X, std::size_t Q = X * 25>
 static inline void CreateMelSpectrogram(const std::vector<double> &source_signal, std::array<std::array<double, X>, X> &mel_spectogram) {
-  static_assert((Q * 2) < max_fft_size);
+  static_assert((Q * 2) < detail::kMaxFftSize);
   const double log_max = std::log2(static_cast<double>(Q + 1));
 
   auto source_idx{0U};
@@ -146,10 +149,10 @@ static inline void CreateMelSpectrogram(const std::vector<double> &source_signal
   for (auto x{0U}; x < X; ++x) {
     const auto copy_size = std::min(Q, source_signal.size() - source_idx);
 
-    std::memcpy(scratch_buffer.data(), &source_signal[source_idx], sizeof(double) * std::min(Q, source_signal.size() - source_idx));
-    std::fill(scratch_buffer.begin() + copy_size, scratch_buffer.begin() + Q, 0.0);
+    std::memcpy(detail::scratch_buffer.data(), &source_signal[source_idx], sizeof(double) * std::min(Q, source_signal.size() - source_idx));
+    std::fill(detail::scratch_buffer.begin() + copy_size, detail::scratch_buffer.begin() + Q, 0.0);
 
-    OneSidedFFT(reinterpret_cast<std::array<double, Q> *>(&scratch_buffer), SAMPLE_RATE);
+    OneSidedFFT(*reinterpret_cast<std::array<double, Q> *>(&detail::scratch_buffer), SAMPLE_RATE);
 
     // Map the Q FFT bins into X logarithmically spaced frequency buckets.
     for (auto y{0U}; y < X; ++y) {
@@ -160,7 +163,7 @@ static inline void CreateMelSpectrogram(const std::vector<double> &source_signal
       const auto bin_count = bin_end - bin_start;
 
       if (bin_count > 0) {
-        const double sum_val = std::accumulate(scratch_buffer.begin() + bin_start, scratch_buffer.begin() + bin_end, 0.0);
+        const double sum_val = std::accumulate(detail::scratch_buffer.begin() + bin_start, detail::scratch_buffer.begin() + bin_end, 0.0);
         mel_spectogram[x][y] = NormalizeSpectrogramValue(sum_val / static_cast<double>(bin_count));
       }
     }
