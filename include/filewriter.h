@@ -64,6 +64,25 @@ void WriteFile(const std::string &filename, const std::string &content);
 
 } // namespace text
 
+namespace image {
+
+class Image {
+public:
+  Image(std::size_t width, std::size_t height);
+
+  std::size_t Width() const { return width; }
+  std::size_t Height() const { return height; }
+  double &At(std::size_t col, std::size_t row) { return pixels[row * width + col]; }
+  double At(std::size_t col, std::size_t row) const { return pixels[row * width + col]; }
+
+private:
+  std::size_t width;
+  std::size_t height;
+  std::vector<double> pixels;
+};
+
+} // namespace image
+
 template <typename T, std::size_t W, std::size_t H> class ImgWriter {
   static_assert(W > 0 && H > 0, "Invalid image size");
 
@@ -122,6 +141,8 @@ template <typename T> static inline RGBA ToRgba(T value, ColorScaleType type) {
 
 namespace ppm {
 
+void Write(const image::Image &image, const std::string &file_name, ColorScaleType color_scale = ColorScaleType::GRAYSCALE);
+
 template <typename T, std::size_t W, std::size_t H, ColorScaleType C = ColorScaleType::GRAYSCALE> class PPMWriter : public ImgWriter<T, W, H> {
 public:
   using ImageData = typename ImgWriter<T, W, H>::ImageData;
@@ -146,6 +167,8 @@ public:
 } // namespace ppm
 
 namespace bmp {
+
+void Write(const image::Image &image, const std::string &file_name, ColorScaleType color_scale = ColorScaleType::GRAYSCALE);
 
 template <typename T, std::size_t W, std::size_t H> class BMPWriter : public ImgWriter<T, W, H> {
 public:

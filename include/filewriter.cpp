@@ -60,6 +60,60 @@ void WriteFile(const std::string &filename, const std::string &content) {
 
 } // namespace text
 
+namespace image {
+
+Image::Image(std::size_t width, std::size_t height) : width(width), height(height), pixels(width * height) {}
+
+} // namespace image
+
+namespace ppm {
+
+void Write(const image::Image &image, const std::string &file_name, ColorScaleType color_scale) {
+  std::ofstream fout(file_name, std::ios::out | std::ios::trunc);
+  detail::EnsureOpen(fout, file_name);
+
+  fout << "P3\n" << image.Width() << ' ' << image.Height() << "\n255\n";
+  for (std::size_t row = image.Height(); row-- > 0;) {
+    for (std::size_t col = 0; col < image.Width(); ++col) {
+      const RGBA rgba = ToRgba(image.At(col, row), color_scale);
+      fout << static_cast<int>(rgba.rgba_st.R) << ' ' << static_cast<int>(rgba.rgba_st.G) << ' ' << static_cast<int>(rgba.rgba_st.B) << '\n';
+    }
+  }
+}
+
+} // namespace ppm
+
+namespace bmp {
+
+void Write(const image::Image &image, const std::string &file_name, ColorScaleType color_scale) {
+  BMPFileHeader file_header{};
+  BMPInfoHeader info_header{};
+
+  info_header.size = sizeof(BMPInfoHeader);
+  info_header.width = static_cast<int32_t>(image.Width());
+  info_header.height = static_cast<int32_t>(image.Height());
+  info_header.bit_count = 32;
+  info_header.compression = 0;
+  info_header.size_image = static_cast<uint32_t>(image.Width() * image.Height() * sizeof(RGBA));
+
+  file_header.offset_data = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader);
+  file_header.file_size = file_header.offset_data + info_header.size_image;
+
+  std::ofstream fout(file_name, std::ios::out | std::ios::binary | std::ios::trunc);
+  detail::EnsureOpen(fout, file_name);
+  fout.write(reinterpret_cast<const char *>(&file_header), sizeof(file_header));
+  fout.write(reinterpret_cast<const char *>(&info_header), sizeof(info_header));
+
+  for (std::size_t row = image.Height(); row-- > 0;) {
+    for (std::size_t col = 0; col < image.Width(); ++col) {
+      const RGBA rgba = ToRgba(image.At(col, row), color_scale);
+      fout.write(reinterpret_cast<const char *>(&rgba), sizeof(rgba));
+    }
+  }
+}
+
+} // namespace bmp
+
 namespace wave {
 
 MonoWriter::MonoWriter(const std::vector<int16_t> &data) : wav_data(data) {}

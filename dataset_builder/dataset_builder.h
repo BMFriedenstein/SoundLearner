@@ -28,20 +28,21 @@
 class DataBuilder {
 private:
   static constexpr char data_output[] = "data";
-  static constexpr std::size_t img_resolution = 512U;
   std::mt19937 rand_eng;
   // Define the range.
   std::size_t num_samples;
   std::size_t coupled_oscilators;
   std::size_t uncoupled_oscilators;
   std::size_t starting_index;
+  std::size_t img_resolution;
+  bool write_ppm_previews;
 
 public:
   void DataBuildJob(double velocity, double freq, std::size_t index);
 
   DataBuilder(std::size_t sample_time_secs, std::size_t coupled_oscilators, std::size_t uncoupled_oscilators = 0, std::size_t starting_index = 0,
-              std::size_t rand_seed = std::random_device{}())
+              std::size_t img_resolution = 512U, bool write_ppm_previews = false, std::size_t rand_seed = std::random_device{}())
       : rand_eng(rand_seed), num_samples(SAMPLE_RATE * sample_time_secs), coupled_oscilators(coupled_oscilators),
-        uncoupled_oscilators(uncoupled_oscilators), starting_index(starting_index) {}
+        uncoupled_oscilators(uncoupled_oscilators), starting_index(starting_index), img_resolution(img_resolution), write_ppm_previews(write_ppm_previews) {}
 };
 #endif // DATASET_BUILDER_H_

@@ -99,6 +99,8 @@ static inline void OneSidedFFT(std::array<double, A> &in_out_data, double freq, 
 
 namespace spectrogram {
 
+using SpectrogramBuffer = std::vector<double>;
+
 static inline double NormalizeSpectrogramValue(double value) {
   if (std::isnan(value)) {
     return 0.0;
@@ -106,6 +108,98 @@ static inline double NormalizeSpectrogramValue(double value) {
 
   const double normalized = (value - detail::kSpectrogramDisplayMin) / (detail::kSpectrogramDisplayMax - detail::kSpectrogramDisplayMin);
   return std::clamp(1.0 - normalized, 0.0, 1.0);
+}
+
+static inline double BufferAt(const SpectrogramBuffer &buffer, std::size_t width, std::size_t col, std::size_t row) {
+  return buffer[row * width + col];
+}
+
+static inline double &BufferAt(SpectrogramBuffer &buffer, std::size_t width, std::size_t col, std::size_t row) {
+  return buffer[row * width + col];
+}
+
+static inline void OneSidedFFT(std::vector<double> &in_out_data, double freq, WindowTypes window_function = WindowTypes::NONE) {
+  const std::size_t input_size = in_out_data.size();
+  const std::size_t fft_size = input_size * 2;
+
+  if (window_function == WindowTypes::HANN) {
+    for (std::size_t i = 0; i < input_size; ++i) {
+      in_out_data[i] *= std::pow(std::sin(static_cast<double>(i) / (2 * M_PI / static_cast<double>(input_size))), 2);
+    }
+  }
+
+  std::vector<fftw_complex> fft_in_buffer(fft_size);
+  std::vector<fftw_complex> fft_out_buffer(fft_size);
+  for (std::size_t i = 0; i < input_size; ++i) {
+    fft_in_buffer[i][detail::kReal] = in_out_data[i];
+  }
+
+  fftw_plan p = fftw_plan_dft_1d(static_cast<int>(fft_size), fft_in_buffer.data(), fft_out_buffer.data(), FFTW_FORWARD, FFTW_ESTIMATE);
+  fftw_execute(p);
+
+  for (std::size_t i = 0; i < input_size; ++i) {
+    const double magnitude{std::hypot(fft_out_buffer[i][detail::kReal], fft_out_buffer[i][detail::kImag])};
+    const double power_density{std::pow(magnitude, 2) / (2 * input_size * freq)};
+    in_out_data[i] = -10 * std::log10(power_density);
+  }
+
+  fftw_destroy_plan(p);
+  fftw_cleanup();
+}
+
+static inline SpectrogramBuffer CreateSpectrogram(const std::vector<double> &source_signal, std::size_t resolution) {
+  SpectrogramBuffer spectrogram(resolution * resolution);
+  std::vector<double> fft_window(resolution);
+  const std::size_t increment_size = source_signal.size() / resolution;
+
+  std::size_t source_idx{0U};
+  for (std::size_t x = 0; x < resolution; ++x) {
+    const auto copy_size = std::min(resolution, source_signal.size() - source_idx);
+    std::copy_n(source_signal.begin() + static_cast<std::ptrdiff_t>(source_idx), copy_size, fft_window.begin());
+    std::fill(fft_window.begin() + static_cast<std::ptrdiff_t>(copy_size), fft_window.end(), 0.0);
+
+    OneSidedFFT(fft_window, SAMPLE_RATE);
+
+    for (std::size_t y = 0; y < resolution; ++y) {
+      BufferAt(spectrogram, resolution, x, y) = NormalizeSpectrogramValue(fft_window[y]);
+    }
+    source_idx += increment_size;
+  }
+
+  return spectrogram;
+}
+
+static inline SpectrogramBuffer CreateMelSpectrogram(const std::vector<double> &source_signal, std::size_t resolution, std::size_t fft_size_multiplier = 25) {
+  const std::size_t fft_bin_count = resolution * fft_size_multiplier;
+  const double log_max = std::log2(static_cast<double>(fft_bin_count + 1));
+  SpectrogramBuffer mel_spectrogram(resolution * resolution);
+  std::vector<double> fft_window(fft_bin_count);
+  const auto increment_size = source_signal.size() / resolution;
+
+  std::size_t source_idx{0U};
+  for (std::size_t x = 0; x < resolution; ++x) {
+    const auto copy_size = std::min(fft_bin_count, source_signal.size() - source_idx);
+    std::copy_n(source_signal.begin() + static_cast<std::ptrdiff_t>(source_idx), copy_size, fft_window.begin());
+    std::fill(fft_window.begin() + static_cast<std::ptrdiff_t>(copy_size), fft_window.end(), 0.0);
+
+    OneSidedFFT(fft_window, SAMPLE_RATE);
+
+    for (std::size_t y = 0; y < resolution; ++y) {
+      const double log_start = std::pow(2.0, (static_cast<double>(y) * log_max) / resolution) - 1.0;
+      const double log_end = std::pow(2.0, (static_cast<double>(y + 1) * log_max) / resolution) - 1.0;
+      const auto bin_start = std::min<std::size_t>(static_cast<std::size_t>(std::floor(log_start)), fft_bin_count - 1);
+      const auto bin_end = std::min<std::size_t>(std::max<std::size_t>(static_cast<std::size_t>(std::ceil(log_end)), bin_start + 1), fft_bin_count);
+      const auto bin_count = bin_end - bin_start;
+
+      if (bin_count > 0) {
+        const double sum_val = std::accumulate(fft_window.begin() + static_cast<std::ptrdiff_t>(bin_start), fft_window.begin() + static_cast<std::ptrdiff_t>(bin_end), 0.0);
+        BufferAt(mel_spectrogram, resolution, x, y) = NormalizeSpectrogramValue(sum_val / static_cast<double>(bin_count));
+      }
+    }
+    source_idx += increment_size;
+  }
+
+  return mel_spectrogram;
 }
 
 template <std::size_t X, std::size_t Y = X>
