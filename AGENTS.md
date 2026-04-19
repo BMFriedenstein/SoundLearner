@@ -77,6 +77,18 @@ Feature extractor behavior:
 - Default crop is 5 seconds from the start.
 - Use `--crop-start-seconds` for later windows.
 
+Python trainer:
+
+```bash
+python -m deep_trainer.train --dataset-root . --epochs 50 --batch-size 8 --resolution 512 --amp
+```
+
+Prediction:
+
+```bash
+python -m deep_trainer.predict --checkpoint runs/baseline/best.pt --feature features/data0.slft --output prediction.data
+```
+
 ## Current Data Formats
 
 Canonical ML input:
@@ -104,6 +116,7 @@ metadata/dataN.json
 ## Coding Guidelines
 
 - Keep C++ at C++23.
+- The ML implementation is PyTorch-based under `deep_trainer`.
 - Prefer small `.cpp` implementations over large header-only code.
 - Keep the `.slft` tensor as the model-facing artifact.
 - Keep previews optional and human-facing.
@@ -116,7 +129,7 @@ metadata/dataN.json
 
 The README currently recommends a supervised encoder-regressor baseline before diffusion:
 
-- ConvNeXt-Tiny/EfficientNetV2-small/modern ResNet style encoder first.
+- The current implementation is a small ConvNeXt-style PyTorch encoder.
 - Structured parameter heads instead of one unstructured flat output.
 - Add uncertainty or mixture-density heads if the inverse mapping is ambiguous.
 - Consider conditional diffusion only after the baseline shows where ambiguity hurts.

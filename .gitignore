@@ -1,5 +1,16 @@
 # Prerequisites
 *.d
+__pycache__/
+*.py[cod]
+.venv/
+build/
+build-*/
+datasets/
+features/
+metadata/
+preview/
+runs/
+sounds/
 
 # Compiled Object files
 *.slo

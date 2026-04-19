@@ -15,7 +15,7 @@ The repo currently contains:
 1. `instrument` - oscillator-based sound generation.
 2. `dataset_builder` - synthetic training data generation with known oscillator labels.
 3. `feature_extractor` - WAV to fixed-size feature tensor conversion.
-4. `deep_trainer` - legacy TensorFlow training scripts kept for reference.
+4. `deep_trainer` - PyTorch training and prediction pipeline for `.slft` tensors.
 5. `player` - instrument model loading and WAV rendering.
 6. `Analyse` - older analysis scripts and experiments.
 
@@ -286,6 +286,50 @@ validation:   held-out synthetic plus curated real audio benchmark
 
 If memory becomes tight, prefer gradient accumulation over shrinking the input too aggressively. The frequency and time resolution are part of the signal.
 
+## Python Trainer
+
+The modern trainer lives in `deep_trainer` and uses PyTorch. It trains directly on `.slft` tensors and predicts structured oscillator slots instead of treating the target as one flat vector.
+
+Install the Python dependencies in your preferred environment:
+
+```bash
+python -m pip install -r deep_trainer/requirements.txt
+```
+
+PyTorch wheels are usually best installed in a dedicated Python environment that matches your CUDA setup. If the import fails after installation, fix the Torch environment before running the trainer.
+
+Train a first baseline:
+
+```bash
+python -m deep_trainer.train --dataset-root . --epochs 50 --batch-size 8 --resolution 512 --amp
+```
+
+Predict oscillator CSV rows from a feature tensor:
+
+```bash
+python -m deep_trainer.predict --checkpoint runs/baseline/best.pt --feature features/data0.slft --output prediction.data
+```
+
+The model currently uses a small ConvNeXt-style encoder and two heads:
+
+1. Oscillator activity logits.
+2. Oscillator parameter regression.
+
+The target slot format is:
+
+```text
+active
+start_amplitude_factor
+start_frequency_factor
+phase_factor
+amplitude_decay_factor
+amplitude_attack_factor
+frequency_decay_factor
+base_frequency_coupled
+```
+
+This is intentionally a baseline. It gives the project a measurable supervised model before moving into uncertainty heads, reconstruction losses, or diffusion.
+
 ## Proposed ML Milestones
 
 1. Freeze the `.slft` tensor format as the model input.
@@ -337,8 +381,9 @@ Useful architecture references:
 - [x] Add fixed-window crop/pad feature extraction.
 - [x] Write canonical `.slft` feature tensors.
 - [ ] Add dataset manifest generation.
-- [ ] Replace legacy TensorFlow trainer.
-- [ ] Train modern supervised baseline.
+- [x] Replace legacy TensorFlow trainer.
+- [x] Add modern supervised baseline.
+- [ ] Train baseline on a full generated dataset.
 - [ ] Add audio reconstruction evaluation.
 - [ ] Test on real non-generated audio.
 - [ ] Add domain randomization.
