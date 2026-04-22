@@ -37,6 +37,10 @@ static inline void AppUsage() {
             << "-n --dataset-size <number of samples to generate>\n"
             << "-c --uncoupled-oscilators <0>\n"
             << "-s --instrument-size <50>\n"
+            << "--min-instrument-size <same as --instrument-size>\n"
+            << "--max-instrument-size <same as --instrument-size>\n"
+            << "--min-uncoupled-oscilators <same as --uncoupled-oscilators>\n"
+            << "--max-uncoupled-oscilators <same as --uncoupled-oscilators>\n"
             << "-t --sample-time <5>\n"
             << "-r --resolution <512>\n"
             << "--freq-bins <512>\n"
@@ -75,7 +79,8 @@ static filewriter::image::Image ToImage(const audio::features::FeatureTensor &fe
 
 static std::string DatasetMetadataJson(const std::string &sample_id, const std::string &wav_path, const std::string &feature_path,
                                        const std::string &oscillator_path, double freq, double velocity, std::size_t sample_count,
-                                       std::size_t resolution, const audio::features::FeatureTensor &features, bool write_ppm_previews) {
+                                       std::size_t coupled_oscillator_count, std::size_t uncoupled_oscillator_count, std::size_t resolution,
+                                       const audio::features::FeatureTensor &features, bool write_ppm_previews) {
   std::ostringstream out;
   out << "{\n";
   out << "  \"id\": \"" << sample_id << "\",\n";
@@ -96,6 +101,9 @@ static std::string DatasetMetadataJson(const std::string &sample_id, const std::
   out << "  \"target\": {\n";
   out << "    \"note_frequency\": " << freq << ",\n";
   out << "    \"velocity\": " << velocity << ",\n";
+  out << "    \"coupled_oscillator_count\": " << coupled_oscillator_count << ",\n";
+  out << "    \"uncoupled_oscillator_count\": " << uncoupled_oscillator_count << ",\n";
+  out << "    \"total_oscillator_count\": " << (coupled_oscillator_count + uncoupled_oscillator_count) << ",\n";
   out << "    \"oscillator_csv_path\": \"" << oscillator_path << "\"\n";
   out << "  },\n";
   out << "  \"previews\": {\n";
@@ -115,8 +123,10 @@ static std::string DatasetMetadataJson(const std::string &sample_id, const std::
 
 int main(int argc, char **argv) {
   // Application defaults.
-  std::size_t coupled_oscilators = 50;
-  std::size_t uncoupled_oscilators = 0;
+  std::size_t min_coupled_oscilators = 50;
+  std::size_t max_coupled_oscilators = 50;
+  std::size_t min_uncoupled_oscilators = 0;
+  std::size_t max_uncoupled_oscilators = 0;
   std::size_t dataset_size = 100;
   std::size_t sample_time = 5; // In seconds
   std::size_t starting_point = 0;
@@ -138,18 +148,29 @@ int main(int argc, char **argv) {
       continue;
     }
     if (((arg1 == "-n") || (arg1 == "--dataset-size") || (arg1 == "-m") || (arg1 == "--midi") || (arg1 == "-s") || (arg1 == "--instrument-size") ||
-         (arg1 == "-d") || (arg1 == "--data_save") || (arg1 == "-c") || (arg1 == "--uncoupled-oscilators") || (arg1 == "-p") || (arg1 == "-t") ||
-         (arg1 == "--sample-time") || (arg1 == "-r") || (arg1 == "--resolution") || (arg1 == "--freq-bins") || (arg1 == "--time-frames") ||
-         (arg1 == "--fft-size-multiplier") || (arg1 == "--startpoint")) &&
+         (arg1 == "--min-instrument-size") || (arg1 == "--max-instrument-size") || (arg1 == "-d") || (arg1 == "--data_save") ||
+         (arg1 == "-c") || (arg1 == "--uncoupled-oscilators") || (arg1 == "--min-uncoupled-oscilators") || (arg1 == "--max-uncoupled-oscilators") ||
+         (arg1 == "-p") || (arg1 == "-t") || (arg1 == "--sample-time") || (arg1 == "-r") || (arg1 == "--resolution") || (arg1 == "--freq-bins") ||
+         (arg1 == "--time-frames") || (arg1 == "--fft-size-multiplier") || (arg1 == "--startpoint")) &&
         (i + 1 < argc)) {
       const std::string_view arg2 = argv[++i];
       std::cout << arg1 << " " << arg2 << std::endl;
       if ((arg1 == "-n") || (arg1 == "--dataset-size")) {
         ParseSize(arg2, dataset_size);
       } else if ((arg1 == "-c") || (arg1 == "--uncoupled-oscilators")) {
-        ParseSize(arg2, uncoupled_oscilators);
+        ParseSize(arg2, min_uncoupled_oscilators);
+        max_uncoupled_oscilators = min_uncoupled_oscilators;
       } else if ((arg1 == "-s") || (arg1 == "--instrument-size")) {
-        ParseSize(arg2, coupled_oscilators);
+        ParseSize(arg2, min_coupled_oscilators);
+        max_coupled_oscilators = min_coupled_oscilators;
+      } else if (arg1 == "--min-instrument-size") {
+        ParseSize(arg2, min_coupled_oscilators);
+      } else if (arg1 == "--max-instrument-size") {
+        ParseSize(arg2, max_coupled_oscilators);
+      } else if (arg1 == "--min-uncoupled-oscilators") {
+        ParseSize(arg2, min_uncoupled_oscilators);
+      } else if (arg1 == "--max-uncoupled-oscilators") {
+        ParseSize(arg2, max_uncoupled_oscilators);
       } else if ((arg1 == "-t") || (arg1 == "--sample-time")) {
         ParseSize(arg2, sample_time);
       } else if ((arg1 == "-p") || (arg1 == "--startpoint")) {
@@ -172,27 +193,38 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "Building dataset...";
-  std::cout << uncoupled_oscilators << std::endl;
+  std::cout << min_uncoupled_oscilators << "-" << max_uncoupled_oscilators << std::endl;
   if (img_resolution == 0 || frequency_bins == 0 || time_frames == 0 || fft_size_multiplier == 0) {
     std::cerr << "Resolution, frequency bins, time frames, and FFT size multiplier must be greater than zero." << std::endl;
     return EXIT_BAD_ARGS;
   }
+  if (min_coupled_oscilators > max_coupled_oscilators || min_uncoupled_oscilators > max_uncoupled_oscilators) {
+    std::cerr << "Minimum oscillator counts must be less than or equal to maximum counts." << std::endl;
+    return EXIT_BAD_ARGS;
+  }
 
   const double note_played_freq = 1000.0;
-  const double velocity = 1.0 / static_cast<double>(coupled_oscilators + uncoupled_oscilators);
-  auto builder = DataBuilder(sample_time, coupled_oscilators, uncoupled_oscilators, starting_point, img_resolution, frequency_bins, time_frames, fft_size_multiplier,
-                             write_ppm_previews);
+  auto builder = DataBuilder(sample_time, min_coupled_oscilators, max_coupled_oscilators, min_uncoupled_oscilators, max_uncoupled_oscilators, starting_point,
+                             img_resolution, frequency_bins, time_frames, fft_size_multiplier, write_ppm_previews);
   for (std::size_t i = 0; i < dataset_size; ++i) {
     std::cout << "IDX: " << i << "...\n";
-    builder.DataBuildJob(velocity, note_played_freq, i);
+    builder.DataBuildJob(note_played_freq, i);
     std::cout << "\n";
   }
 
   return EXIT_NORMAL;
 }
 
-void DataBuilder::DataBuildJob(double velocity, double freq, std::size_t index) {
-  instrument::InstrumentModel rand_instrument(coupled_oscilators, uncoupled_oscilators, std::to_string(index));
+void DataBuilder::DataBuildJob(double freq, std::size_t index) {
+  const auto coupled_count = std::uniform_int_distribution<std::size_t>(min_coupled_oscilators, max_coupled_oscilators)(rand_eng);
+  const auto uncoupled_count = std::uniform_int_distribution<std::size_t>(min_uncoupled_oscilators, max_uncoupled_oscilators)(rand_eng);
+  const auto oscillator_count = coupled_count + uncoupled_count;
+  if (oscillator_count == 0U) {
+    std::cerr << "Skipping sample " << index << " because oscillator count resolved to zero." << std::endl;
+    return;
+  }
+  const double velocity = 1.0 / static_cast<double>(oscillator_count);
+  instrument::InstrumentModel rand_instrument(coupled_count, uncoupled_count, std::to_string(index));
   bool sample_has_distorted = false;
   std::vector<double> sample_double = rand_instrument.GenerateSignal(velocity, freq, num_samples);
   std::vector<int16_t> sample = rand_instrument.GenerateIntSignal(velocity, freq, num_samples, sample_has_distorted, false);
@@ -232,12 +264,14 @@ void DataBuilder::DataBuildJob(double velocity, double freq, std::size_t index) 
   std::string instrument_data = rand_instrument.ToCsv(instrument::SortType::frequency);
   std::string instrument_meta = std::to_string(freq) + "\n";
   instrument_meta += std::to_string(velocity) + "\n";
+  instrument_meta += std::to_string(coupled_count) + "\n";
+  instrument_meta += std::to_string(uncoupled_count) + "\n";
   instrument_meta += std::to_string(img_resolution) + "\n";
   instrument_meta += std::to_string(frequency_bins) + "\n";
   instrument_meta += std::to_string(time_frames) + "\n";
   filewriter::text::WriteFile(sample_id + ".meta", instrument_meta);
   filewriter::text::WriteFile(oscillator_path, instrument_data);
-  filewriter::text::WriteFile(metadata_path,
-                              DatasetMetadataJson(sample_id, wav_path, feature_path, oscillator_path, freq, velocity, num_samples, img_resolution, features, write_ppm_previews));
+  filewriter::text::WriteFile(metadata_path, DatasetMetadataJson(sample_id, wav_path, feature_path, oscillator_path, freq, velocity, num_samples, coupled_count,
+                                                                 uncoupled_count, img_resolution, features, write_ppm_previews));
   std::cout << "done\n";
 }

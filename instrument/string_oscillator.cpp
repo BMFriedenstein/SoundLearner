@@ -21,6 +21,12 @@
 #include <vector>
 namespace instrument {
 namespace oscillator {
+namespace {
+double ClampRenderedFrequency(double frequency) {
+  return std::clamp(frequency, 0.0, k_max_rendered_frequency);
+}
+} // namespace
+
 StringOccilator::StringOccilator(double initial_phase, double frequency_factor, double amplitude_factor, double amplitude_decay,
                                  double amplitude_attack, double frequency_decay, bool is_coupled)
     : phase_factor(std::clamp(initial_phase, 0.0, 1.0)), start_frequency_factor(std::clamp(frequency_factor, 0.0, 1.0)),
@@ -50,7 +56,7 @@ void StringOccilator::PrimeString(double freq, double velocity) {
   in_amplitude_decay = false;
   max_amplitude = velocity * amplitude_factor;
   base_frequency = freq;
-  frequency_state = base_frequency * frequency_factor;
+  frequency_state = ClampRenderedFrequency(base_frequency * frequency_factor);
   amplitude_attack_delta = amplitude_attack * max_amplitude;
   amplitude_decay_rate = amplitude_decay;
   frequency_decay_rate = frequency_decay;
@@ -67,7 +73,7 @@ double StringOccilator::NextSample() {
     amplitude_state += amplitude_attack_delta;
   } else {
     amplitude_state *= amplitude_decay_rate;
-    frequency_state *= frequency_decay_rate;
+    frequency_state = ClampRenderedFrequency(frequency_state * frequency_decay_rate);
   }
   if (amplitude_state >= max_amplitude) {
     in_amplitude_decay = true;

@@ -31,8 +31,10 @@ private:
   std::mt19937 rand_eng;
   // Define the range.
   std::size_t num_samples;
-  std::size_t coupled_oscilators;
-  std::size_t uncoupled_oscilators;
+  std::size_t min_coupled_oscilators;
+  std::size_t max_coupled_oscilators;
+  std::size_t min_uncoupled_oscilators;
+  std::size_t max_uncoupled_oscilators;
   std::size_t starting_index;
   std::size_t img_resolution;
   std::size_t frequency_bins;
@@ -41,15 +43,17 @@ private:
   bool write_ppm_previews;
 
 public:
-  void DataBuildJob(double velocity, double freq, std::size_t index);
+  void DataBuildJob(double freq, std::size_t index);
 
-  DataBuilder(std::size_t sample_time_secs, std::size_t coupled_count, std::size_t uncoupled_count = 0,
-              std::size_t first_index = 0, std::size_t preview_resolution = 512U, std::size_t feature_frequency_bins = 512U,
-              std::size_t feature_time_frames = 512U, std::size_t feature_fft_size_multiplier = 25U, bool should_write_ppm_previews = false,
+  DataBuilder(std::size_t sample_time_secs, std::size_t min_coupled_count, std::size_t max_coupled_count,
+              std::size_t min_uncoupled_count = 0, std::size_t max_uncoupled_count = 0, std::size_t first_index = 0,
+              std::size_t preview_resolution = 512U, std::size_t feature_frequency_bins = 512U, std::size_t feature_time_frames = 512U,
+              std::size_t feature_fft_size_multiplier = 25U, bool should_write_ppm_previews = false,
               std::size_t rand_seed = std::random_device{}())
-      : rand_eng(rand_seed), num_samples(SAMPLE_RATE * sample_time_secs), coupled_oscilators(coupled_count),
-        uncoupled_oscilators(uncoupled_count), starting_index(first_index), img_resolution(preview_resolution), frequency_bins(feature_frequency_bins),
-        time_frames(feature_time_frames), fft_size_multiplier(feature_fft_size_multiplier),
+      : rand_eng(rand_seed), num_samples(SAMPLE_RATE * sample_time_secs), min_coupled_oscilators(min_coupled_count),
+        max_coupled_oscilators(std::max(min_coupled_count, max_coupled_count)), min_uncoupled_oscilators(min_uncoupled_count),
+        max_uncoupled_oscilators(std::max(min_uncoupled_count, max_uncoupled_count)), starting_index(first_index),
+        img_resolution(preview_resolution), frequency_bins(feature_frequency_bins), time_frames(feature_time_frames), fft_size_multiplier(feature_fft_size_multiplier),
         write_ppm_previews(should_write_ppm_previews) {}
 };
 #endif // DATASET_BUILDER_H_

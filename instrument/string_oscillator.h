@@ -37,6 +37,7 @@ constexpr double k_min_amp_attack_rate = k_sample_increment / 150; // 1.5117158e
 constexpr double k_max_coupled_freq_factor = 10.0;                 // 10
 constexpr double k_max_uncoupled_freq_factor = 20000.0;            // 20000
 constexpr double k_min_freq_factor = 20 / 20000;                   // 0.001
+constexpr double k_max_rendered_frequency = (SAMPLE_RATE / 2.0) - 1.0; // stay below Nyquist to avoid alias-fold sweeps
 
 class StringOccilator {
 public:
