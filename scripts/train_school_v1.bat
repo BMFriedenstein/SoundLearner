@@ -1,0 +1,50 @@
+@echo off
+setlocal
+
+cd /d "%~dp0\.."
+
+set "PYTHON_EXE=.venv\Scripts\python.exe"
+if not exist "%PYTHON_EXE%" (
+  echo Missing "%PYTHON_EXE%". Create the virtual environment first.
+  exit /b 1
+)
+
+set "STAGE=%~1"
+if "%STAGE%"=="" set "STAGE=all"
+
+call :run_stage clean deep_trainer\configs\school_v1_clean.toml datasets\schools\oscillator_school_v1\00_clean_varcount_1024x512_1k runs\school_v1_clean_w96_b8_e40 sounds\eval\school_v1_clean_w96_b8_e40
+if errorlevel 1 exit /b 1
+call :run_stage light deep_trainer\configs\school_v1_light.toml datasets\schools\oscillator_school_v1\10_realish_light_1024x512_1k runs\school_v1_light_w96_b8_e40 sounds\eval\school_v1_light_w96_b8_e40
+if errorlevel 1 exit /b 1
+call :run_stage medium deep_trainer\configs\school_v1_medium.toml datasets\schools\oscillator_school_v1\20_realish_medium_1024x512_1k runs\school_v1_medium_w96_b8_e40 sounds\eval\school_v1_medium_w96_b8_e40
+if errorlevel 1 exit /b 1
+call :run_stage heavy deep_trainer\configs\school_v1_heavy.toml datasets\schools\oscillator_school_v1\30_realish_heavy_1024x512_1k runs\school_v1_heavy_w96_b8_e40 sounds\eval\school_v1_heavy_w96_b8_e40
+if errorlevel 1 exit /b 1
+
+echo School v1 training ladder complete.
+exit /b 0
+
+:run_stage
+set "NAME=%~1"
+set "CONFIG=%~2"
+set "DATASET_ROOT=%~3"
+set "RUN_DIR=%~4"
+set "EVAL_DIR=%~5"
+
+if /i not "%STAGE%"=="all" if /i not "%STAGE%"=="%NAME%" goto :eof
+
+echo ============================================================
+echo Running stage: %NAME%
+echo Config: %CONFIG%
+echo ============================================================
+
+"%PYTHON_EXE%" -m deep_trainer.train --config "%CONFIG%"
+if errorlevel 1 exit /b 1
+
+"%PYTHON_EXE%" -m deep_trainer.evaluate --checkpoint "%RUN_DIR%\best.pt" --manifest sounds\manifest.csv --output-dir "%EVAL_DIR%" --freq-bins 1024 --time-frames 512 --device cpu
+if errorlevel 1 exit /b 1
+
+"%PYTHON_EXE%" -m deep_trainer.analyze_parameter_space --dataset-root "%DATASET_ROOT%" --evaluation-root "%EVAL_DIR%" --output-dir "%EVAL_DIR%\analysis"
+if errorlevel 1 exit /b 1
+
+goto :eof
