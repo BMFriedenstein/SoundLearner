@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import csv
 from dataclasses import asdict
+import json
 from pathlib import Path
 import random
+import tomllib
 from typing import Any
 
 import torch
@@ -19,8 +21,19 @@ from .losses import OscillatorLoss
 from .model import ModelConfig, SoundLearnerNet
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train the SoundLearner oscillator inverse model.")
+def load_config_file(path: Path) -> dict[str, Any]:
+    if not path.exists():
+      raise FileNotFoundError(f"Training config file does not exist: {path}")
+    if path.suffix.lower() == ".json":
+      data = json.loads(path.read_text())
+    else:
+      data = tomllib.loads(path.read_text())
+    if not isinstance(data, dict):
+      raise ValueError(f"Training config {path} did not produce a top-level table/object")
+    return data
+
+
+def add_train_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--dataset-root", type=Path, default=Path("."), help="Root containing features/, metadata/, and dataN.data files.")
     parser.add_argument("--output-dir", type=Path, default=Path("runs/baseline"), help="Directory for checkpoints.")
     parser.add_argument("--epochs", type=int, default=50)
@@ -38,6 +51,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--amp", action="store_true", help="Use CUDA mixed precision.")
     parser.add_argument("--tensorboard", action="store_true", help="Write TensorBoard event logs if tensorboard is installed.")
+
+
+def parse_args() -> argparse.Namespace:
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--config", type=Path, default=None, help="Optional TOML or JSON training config file.")
+    pre_args, _ = pre_parser.parse_known_args()
+
+    parser = argparse.ArgumentParser(description="Train the SoundLearner oscillator inverse model.")
+    parser.add_argument("--config", type=Path, default=None, help="Optional TOML or JSON training config file.")
+    add_train_arguments(parser)
+    if pre_args.config is not None:
+      config_defaults = load_config_file(pre_args.config)
+      parser.set_defaults(**config_defaults)
     return parser.parse_args()
 
 

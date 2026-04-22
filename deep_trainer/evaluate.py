@@ -15,6 +15,7 @@ import wave
 import numpy as np
 import torch
 
+from .audio_preview import write_ab_mel_preview, write_mel_preview
 from .model import ModelConfig, SoundLearnerNet
 from .slft import read_slft
 
@@ -368,6 +369,39 @@ def to_json_safe(value: Any) -> Any:
     return value
 
 
+def write_ab_artifacts(output_dir: Path, item_name: str, input_wav: Path, rendered_wav: Path, row: dict[str, Any]) -> None:
+    ab_dir = output_dir / "ab_listen"
+    mel_dir = ab_dir / "mel"
+    ab_dir.mkdir(parents=True, exist_ok=True)
+    mel_dir.mkdir(parents=True, exist_ok=True)
+
+    original_out = ab_dir / f"{item_name}_original.wav"
+    predicted_out = ab_dir / f"{item_name}_predicted.wav"
+    shutil.copyfile(input_wav, original_out)
+    shutil.copyfile(rendered_wav, predicted_out)
+
+    original_mel = mel_dir / f"{item_name}_original_mel.png"
+    predicted_mel = mel_dir / f"{item_name}_predicted_mel.png"
+    combined_mel = mel_dir / f"{item_name}_ab_mel.png"
+    write_mel_preview(original_out, original_mel)
+    write_mel_preview(predicted_out, predicted_mel)
+    write_ab_mel_preview(original_out, predicted_out, combined_mel)
+
+    manifest_path = ab_dir / "ab_manifest.csv"
+    manifest_row = {
+        "name": item_name,
+        "original_wav": path_for_record(original_out, repo_root()),
+        "predicted_wav": path_for_record(predicted_out, repo_root()),
+        "original_mel": path_for_record(original_mel, repo_root()),
+        "predicted_mel": path_for_record(predicted_mel, repo_root()),
+        "ab_mel": path_for_record(combined_mel, repo_root()),
+        "feature_mae": row["feature_mae"],
+        "feature_rmse": row["feature_rmse"],
+        "note_frequency": row["note_frequency"],
+    }
+    write_summary_row(manifest_path, manifest_row)
+
+
 def evaluate_item(args: argparse.Namespace, model: SoundLearnerNet, device: torch.device, item: EvaluationItem) -> dict[str, Any]:
     item_dir = args.output_dir / item.name
     source_feature = ensure_source_feature(args, item, item_dir / "features" / f"{item.name}_source.slft", item_dir / "previews" / f"{item.name}_source")
@@ -397,6 +431,10 @@ def evaluate_item(args: argparse.Namespace, model: SoundLearnerNet, device: torc
         **metrics,
     }
     (item_dir / "metrics.json").write_text(json.dumps(row, indent=2))
+    mel_dir = item_dir / "mel"
+    write_mel_preview(item.input_wav, mel_dir / f"{item.name}_source_mel.png")
+    write_mel_preview(rendered_wav, mel_dir / f"{item.name}_rendered_mel.png")
+    write_ab_mel_preview(item.input_wav, rendered_wav, mel_dir / f"{item.name}_ab_mel.png")
     return row
 
 
@@ -424,6 +462,7 @@ def main() -> None:
       print(f"[{index}/{len(items)}] {item.name}")
       row = evaluate_item(args, model, device, item)
       write_summary_row(summary_path, row)
+      write_ab_artifacts(args.output_dir, item.name, item.input_wav, repo_root() / row["rendered_wav"], row)
       print(
           f"  feature_mae={row['feature_mae']:.6f} feature_rmse={row['feature_rmse']:.6f} "
           f"rows={row['predicted_rows']} note={row['note_frequency']:.3f}"
