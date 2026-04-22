@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from dataclasses import asdict
 from pathlib import Path
 import random
@@ -8,6 +9,10 @@ from typing import Any
 
 import torch
 from torch.utils.data import DataLoader, random_split
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except ImportError:
+    SummaryWriter = None
 
 from .dataset import SoundLearnerDataset, discover_examples
 from .losses import OscillatorLoss
@@ -25,11 +30,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-split", type=float, default=0.15)
     parser.add_argument("--max-oscillators", type=int, default=64)
     parser.add_argument("--resolution", type=int, default=None, help="Optional strict SLFT frequency/time resolution.")
+    parser.add_argument("--freq-bins", type=int, default=None, help="Optional strict SLFT frequency bin count.")
+    parser.add_argument("--time-frames", type=int, default=None, help="Optional strict SLFT time frame count.")
     parser.add_argument("--width", type=int, default=64)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--amp", action="store_true", help="Use CUDA mixed precision.")
+    parser.add_argument("--tensorboard", action="store_true", help="Write TensorBoard event logs if tensorboard is installed.")
     return parser.parse_args()
 
 
@@ -113,13 +121,42 @@ def save_checkpoint(
     )
 
 
+def write_metrics_row(path: Path, row: dict[str, float | int]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = path.exists()
+    with path.open("a", newline="") as handle:
+      writer = csv.DictWriter(handle, fieldnames=list(row.keys()))
+      if not file_exists:
+        writer.writeheader()
+      writer.writerow(row)
+
+
+def log_tensorboard(writer: Any, epoch: int, train_metrics: dict[str, float], validation_metrics: dict[str, float], learning_rate: float) -> None:
+    if writer is None:
+      return
+    writer.add_scalar("train/loss", train_metrics["loss"], epoch)
+    writer.add_scalar("train/activity_loss", train_metrics["activity_loss"], epoch)
+    writer.add_scalar("train/parameter_loss", train_metrics["parameter_loss"], epoch)
+    writer.add_scalar("val/loss", validation_metrics["loss"], epoch)
+    writer.add_scalar("val/activity_loss", validation_metrics["activity_loss"], epoch)
+    writer.add_scalar("val/parameter_loss", validation_metrics["parameter_loss"], epoch)
+    writer.add_scalar("optim/learning_rate", learning_rate, epoch)
+    writer.flush()
+
+
 def main() -> None:
     args = parse_args()
     random.seed(args.seed)
     torch.manual_seed(args.seed)
 
     examples = discover_examples(args.dataset_root)
-    dataset = SoundLearnerDataset(examples, max_oscillators=args.max_oscillators, expected_resolution=args.resolution)
+    dataset = SoundLearnerDataset(
+        examples,
+        max_oscillators=args.max_oscillators,
+        expected_resolution=args.resolution,
+        expected_frequency_bins=args.freq_bins,
+        expected_time_frames=args.time_frames,
+    )
     train_dataset, validation_dataset = split_dataset(dataset, args.validation_split, args.seed)
 
     first_sample = dataset[0]
@@ -135,24 +172,56 @@ def main() -> None:
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler("cuda") if args.amp and device.type == "cuda" else None
     best_validation_loss = float("inf")
+    metrics_path = args.output_dir / "metrics.csv"
+    writer = None
+    if args.tensorboard:
+      if SummaryWriter is None:
+        print("TensorBoard requested, but tensorboard is not installed. CSV metrics will still be written.")
+      else:
+        writer = SummaryWriter(log_dir=str(args.output_dir / "tensorboard"))
 
     print(f"Training on {len(train_dataset)} examples, validating on {len(validation_dataset)} examples, device={device}")
-    for epoch in range(1, args.epochs + 1):
-      train_metrics = run_epoch(model, train_loader, criterion, device, optimizer, scaler)
-      with torch.no_grad():
-        validation_metrics = run_epoch(model, validation_loader, criterion, device, None, None)
+    try:
+      for epoch in range(1, args.epochs + 1):
+        train_metrics = run_epoch(model, train_loader, criterion, device, optimizer, scaler)
+        with torch.no_grad():
+          validation_metrics = run_epoch(model, validation_loader, criterion, device, None, None)
 
-      print(
-          f"epoch={epoch:03d} train_loss={train_metrics['loss']:.6f} "
-          f"val_loss={validation_metrics['loss']:.6f} "
-          f"val_activity={validation_metrics['activity_loss']:.6f} "
-          f"val_params={validation_metrics['parameter_loss']:.6f}"
-      )
+        learning_rate = optimizer.param_groups[0]["lr"]
+        improved = validation_metrics["loss"] < best_validation_loss
+        if improved:
+          best_validation_loss = validation_metrics["loss"]
 
-      save_checkpoint(args.output_dir / "last.pt", model, optimizer, epoch, best_validation_loss, args)
-      if validation_metrics["loss"] < best_validation_loss:
-        best_validation_loss = validation_metrics["loss"]
-        save_checkpoint(args.output_dir / "best.pt", model, optimizer, epoch, best_validation_loss, args)
+        print(
+            f"epoch={epoch:03d} train_loss={train_metrics['loss']:.6f} "
+            f"val_loss={validation_metrics['loss']:.6f} "
+            f"val_activity={validation_metrics['activity_loss']:.6f} "
+            f"val_params={validation_metrics['parameter_loss']:.6f} "
+            f"best_val={best_validation_loss:.6f}"
+        )
+
+        write_metrics_row(
+            metrics_path,
+            {
+                "epoch": epoch,
+                "train_loss": train_metrics["loss"],
+                "train_activity_loss": train_metrics["activity_loss"],
+                "train_parameter_loss": train_metrics["parameter_loss"],
+                "val_loss": validation_metrics["loss"],
+                "val_activity_loss": validation_metrics["activity_loss"],
+                "val_parameter_loss": validation_metrics["parameter_loss"],
+                "best_validation_loss": best_validation_loss,
+                "learning_rate": learning_rate,
+            },
+        )
+        log_tensorboard(writer, epoch, train_metrics, validation_metrics, learning_rate)
+
+        save_checkpoint(args.output_dir / "last.pt", model, optimizer, epoch, best_validation_loss, args)
+        if improved:
+          save_checkpoint(args.output_dir / "best.pt", model, optimizer, epoch, best_validation_loss, args)
+    finally:
+      if writer is not None:
+        writer.close()
 
 
 if __name__ == "__main__":

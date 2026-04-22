@@ -76,6 +76,7 @@ Feature extractor behavior:
 - Short WAV files are zero-padded.
 - Default crop is 5 seconds from the start.
 - Use `--crop-start-seconds` for later windows.
+- `--resolution` is square shorthand; use `--freq-bins` and `--time-frames` for rectangular high-frequency tensors.
 
 Python trainer:
 
@@ -88,6 +89,14 @@ Prediction:
 ```bash
 python -m deep_trainer.predict --checkpoint runs/baseline/best.pt --feature features/data0.slft --output prediction.data
 ```
+
+Evaluation harness:
+
+```bash
+python -m deep_trainer.evaluate --checkpoint runs/baseline_256_1k/best.pt --input sounds/o_a2_1.wav --output-dir sounds/eval/o_a2_1_eval --resolution 256 --device cpu
+```
+
+Use `--device cpu` if a long GPU training run is active. The harness calls the WSL-built C++ feature extractor/player by default.
 
 ## Current Data Formats
 

@@ -54,7 +54,6 @@ void StringOccilator::PrimeString(double freq, double velocity) {
   amplitude_attack_delta = amplitude_attack * max_amplitude;
   amplitude_decay_rate = amplitude_decay;
   frequency_decay_rate = frequency_decay;
-  std::cout << "V" << velocity << " A" << amplitude_factor << " M " << max_amplitude << "\n";
 }
 
 /*

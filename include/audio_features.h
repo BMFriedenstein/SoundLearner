@@ -36,8 +36,13 @@ struct FeatureTensor {
 };
 
 std::vector<double> CropOrPad(const std::vector<double> &source_signal, std::size_t start_sample, std::size_t sample_count);
-FeatureTensor ExtractLogFrequencyFeatures(const std::vector<double> &source_signal, std::size_t resolution);
-FeatureTensor ExtractLogFrequencyFeatures(const std::vector<double> &source_signal, std::size_t resolution, std::size_t start_sample, std::size_t sample_count);
+FeatureTensor ExtractLogFrequencyFeatures(const std::vector<double> &source_signal, std::size_t resolution, std::size_t fft_size_multiplier = 25);
+FeatureTensor ExtractLogFrequencyFeatures(const std::vector<double> &source_signal, std::size_t resolution, std::size_t start_sample, std::size_t sample_count,
+                                          std::size_t fft_size_multiplier = 25);
+FeatureTensor ExtractLogFrequencyFeatureGrid(const std::vector<double> &source_signal, std::size_t frequency_bins, std::size_t time_frames,
+                                             std::size_t fft_size_multiplier = 25);
+FeatureTensor ExtractLogFrequencyFeatureGrid(const std::vector<double> &source_signal, std::size_t frequency_bins, std::size_t time_frames, std::size_t start_sample,
+                                             std::size_t sample_count, std::size_t fft_size_multiplier = 25);
 void WriteFeatureTensor(const FeatureTensor &features, const std::string &file_name);
 
 } // namespace audio::features

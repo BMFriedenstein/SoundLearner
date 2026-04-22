@@ -39,6 +39,9 @@ static inline void AppUsage() {
             << "-s --instrument-size <50>\n"
             << "-t --sample-time <5>\n"
             << "-r --resolution <512>\n"
+            << "--freq-bins <512>\n"
+            << "--time-frames <512>\n"
+            << "--fft-size-multiplier <25>\n"
             << "--write-ppm-preview\n"
             << "-d --data_save <'data'> (save data)"
             << "-p --startpoint <0> (save data)" << std::endl;
@@ -118,6 +121,9 @@ int main(int argc, char **argv) {
   std::size_t sample_time = 5; // In seconds
   std::size_t starting_point = 0;
   std::size_t img_resolution = 512;
+  std::size_t frequency_bins = 512;
+  std::size_t time_frames = 512;
+  std::size_t fft_size_multiplier = 25;
   bool write_ppm_previews = false;
 
   // Parse arguments.
@@ -132,9 +138,9 @@ int main(int argc, char **argv) {
       continue;
     }
     if (((arg1 == "-n") || (arg1 == "--dataset-size") || (arg1 == "-m") || (arg1 == "--midi") || (arg1 == "-s") || (arg1 == "--instrument-size") ||
-         (arg1 == "-d") || (arg1 == "--data_save") || (arg1 == "-c") || (arg1 == "--uncoupled-oscilators") || (arg1 == "-p") || (arg1 == "-r") ||
-         (arg1 == "--resolution") ||
-         (arg1 == "--startpoint")) &&
+         (arg1 == "-d") || (arg1 == "--data_save") || (arg1 == "-c") || (arg1 == "--uncoupled-oscilators") || (arg1 == "-p") || (arg1 == "-t") ||
+         (arg1 == "--sample-time") || (arg1 == "-r") || (arg1 == "--resolution") || (arg1 == "--freq-bins") || (arg1 == "--time-frames") ||
+         (arg1 == "--fft-size-multiplier") || (arg1 == "--startpoint")) &&
         (i + 1 < argc)) {
       const std::string_view arg2 = argv[++i];
       std::cout << arg1 << " " << arg2 << std::endl;
@@ -150,6 +156,14 @@ int main(int argc, char **argv) {
         ParseSize(arg2, starting_point);
       } else if ((arg1 == "-r") || (arg1 == "--resolution")) {
         ParseSize(arg2, img_resolution);
+        frequency_bins = img_resolution;
+        time_frames = img_resolution;
+      } else if (arg1 == "--freq-bins") {
+        ParseSize(arg2, frequency_bins);
+      } else if (arg1 == "--time-frames") {
+        ParseSize(arg2, time_frames);
+      } else if (arg1 == "--fft-size-multiplier") {
+        ParseSize(arg2, fft_size_multiplier);
       } else {
         std::cerr << "--destination option requires one argument." << std::endl;
         return EXIT_BAD_ARGS;
@@ -159,14 +173,15 @@ int main(int argc, char **argv) {
 
   std::cout << "Building dataset...";
   std::cout << uncoupled_oscilators << std::endl;
-  if (img_resolution == 0) {
-    std::cerr << "Resolution must be greater than zero." << std::endl;
+  if (img_resolution == 0 || frequency_bins == 0 || time_frames == 0 || fft_size_multiplier == 0) {
+    std::cerr << "Resolution, frequency bins, time frames, and FFT size multiplier must be greater than zero." << std::endl;
     return EXIT_BAD_ARGS;
   }
 
   const double note_played_freq = 1000.0;
   const double velocity = 1.0 / static_cast<double>(coupled_oscilators + uncoupled_oscilators);
-  auto builder = DataBuilder(sample_time, coupled_oscilators, uncoupled_oscilators, starting_point, img_resolution, write_ppm_previews);
+  auto builder = DataBuilder(sample_time, coupled_oscilators, uncoupled_oscilators, starting_point, img_resolution, frequency_bins, time_frames, fft_size_multiplier,
+                             write_ppm_previews);
   for (std::size_t i = 0; i < dataset_size; ++i) {
     std::cout << "IDX: " << i << "...\n";
     builder.DataBuildJob(velocity, note_played_freq, i);
@@ -196,7 +211,7 @@ void DataBuilder::DataBuildJob(double velocity, double freq, std::size_t index) 
   wave_writer.Write(wav_path);
 
   std::cout << "writing features\n";
-  const auto features = audio::features::ExtractLogFrequencyFeatures(sample_double, img_resolution, 0, num_samples);
+  const auto features = audio::features::ExtractLogFrequencyFeatureGrid(sample_double, frequency_bins, time_frames, 0, num_samples, fft_size_multiplier);
   audio::features::WriteFeatureTensor(features, feature_path);
 
   // Write out the spectrogram to a image file
@@ -218,6 +233,8 @@ void DataBuilder::DataBuildJob(double velocity, double freq, std::size_t index) 
   std::string instrument_meta = std::to_string(freq) + "\n";
   instrument_meta += std::to_string(velocity) + "\n";
   instrument_meta += std::to_string(img_resolution) + "\n";
+  instrument_meta += std::to_string(frequency_bins) + "\n";
+  instrument_meta += std::to_string(time_frames) + "\n";
   filewriter::text::WriteFile(sample_id + ".meta", instrument_meta);
   filewriter::text::WriteFile(oscillator_path, instrument_data);
   filewriter::text::WriteFile(metadata_path,

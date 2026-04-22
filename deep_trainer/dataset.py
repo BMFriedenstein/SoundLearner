@@ -82,10 +82,18 @@ def read_oscillator_csv(path: str | Path, max_oscillators: int) -> tuple[np.ndar
 
 
 class SoundLearnerDataset(Dataset):
-    def __init__(self, examples: Iterable[ExamplePath], max_oscillators: int, expected_resolution: int | None = None) -> None:
+    def __init__(
+        self,
+        examples: Iterable[ExamplePath],
+        max_oscillators: int,
+        expected_resolution: int | None = None,
+        expected_frequency_bins: int | None = None,
+        expected_time_frames: int | None = None,
+    ) -> None:
       self.examples = list(examples)
       self.max_oscillators = max_oscillators
-      self.expected_resolution = expected_resolution
+      self.expected_frequency_bins = expected_frequency_bins if expected_frequency_bins is not None else expected_resolution
+      self.expected_time_frames = expected_time_frames if expected_time_frames is not None else expected_resolution
       if not self.examples:
         raise ValueError("No SoundLearner examples found")
 
@@ -95,10 +103,12 @@ class SoundLearnerDataset(Dataset):
     def __getitem__(self, index: int) -> dict[str, torch.Tensor | str]:
       example = self.examples[index]
       slft = read_slft(example.feature_path)
-      if self.expected_resolution is not None:
-        if slft.frequency_bins != self.expected_resolution or slft.time_frames != self.expected_resolution:
+      if self.expected_frequency_bins is not None or self.expected_time_frames is not None:
+        expected_frequency_bins = self.expected_frequency_bins if self.expected_frequency_bins is not None else slft.frequency_bins
+        expected_time_frames = self.expected_time_frames if self.expected_time_frames is not None else slft.time_frames
+        if slft.frequency_bins != expected_frequency_bins or slft.time_frames != expected_time_frames:
           raise ValueError(
-              f"{example.feature_path} is {slft.frequency_bins}x{slft.time_frames}, expected {self.expected_resolution}x{self.expected_resolution}"
+              f"{example.feature_path} is {slft.frequency_bins}x{slft.time_frames}, expected {expected_frequency_bins}x{expected_time_frames}"
           )
 
       target, mask = read_oscillator_csv(example.target_path, self.max_oscillators)
@@ -109,4 +119,3 @@ class SoundLearnerDataset(Dataset):
           "feature_path": str(example.feature_path),
           "target_path": str(example.target_path),
       }
-

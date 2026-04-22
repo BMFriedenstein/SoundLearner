@@ -29,6 +29,9 @@ void AppUsage() {
             << "-i --input <input.wav>\n"
             << "-o --output <features.slft>\n"
             << "-r --resolution <512>\n"
+            << "--freq-bins <512>\n"
+            << "--time-frames <512>\n"
+            << "--fft-size-multiplier <25>\n"
             << "-t --crop-seconds <5>\n"
             << "--crop-start-seconds <0>\n"
             << "-p --preview-prefix <preview/name>\n"
@@ -84,6 +87,9 @@ int main(int argc, char **argv) {
   std::string output_file;
   std::string preview_prefix;
   std::size_t resolution = 512;
+  std::size_t frequency_bins = 512;
+  std::size_t time_frames = 512;
+  std::size_t fft_size_multiplier = 25;
   std::size_t crop_seconds = 5;
   std::size_t crop_start_seconds = 0;
   bool write_ppm_preview = false;
@@ -115,6 +121,23 @@ int main(int argc, char **argv) {
         std::cerr << "Invalid resolution: " << value << '\n';
         return EXIT_BAD_ARGS;
       }
+      frequency_bins = resolution;
+      time_frames = resolution;
+    } else if (arg == "--freq-bins") {
+      if (!ParseSize(value, frequency_bins)) {
+        std::cerr << "Invalid frequency bins: " << value << '\n';
+        return EXIT_BAD_ARGS;
+      }
+    } else if (arg == "--time-frames") {
+      if (!ParseSize(value, time_frames)) {
+        std::cerr << "Invalid time frames: " << value << '\n';
+        return EXIT_BAD_ARGS;
+      }
+    } else if (arg == "--fft-size-multiplier") {
+      if (!ParseSize(value, fft_size_multiplier)) {
+        std::cerr << "Invalid FFT size multiplier: " << value << '\n';
+        return EXIT_BAD_ARGS;
+      }
     } else if ((arg == "-t") || (arg == "--crop-seconds")) {
       if (!ParseSize(value, crop_seconds)) {
         std::cerr << "Invalid crop seconds: " << value << '\n';
@@ -133,7 +156,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (input_file.empty() || output_file.empty() || resolution == 0 || crop_seconds == 0) {
+  if (input_file.empty() || output_file.empty() || frequency_bins == 0 || time_frames == 0 || crop_seconds == 0 || fft_size_multiplier == 0) {
     AppUsage();
     return EXIT_BAD_ARGS;
   }
@@ -148,7 +171,7 @@ int main(int argc, char **argv) {
   const auto samples = ToNormalizedDoubleSamples(pcm);
   const auto start_sample = crop_start_seconds * SAMPLE_RATE;
   const auto sample_count = crop_seconds * SAMPLE_RATE;
-  const auto features = audio::features::ExtractLogFrequencyFeatures(samples, resolution, start_sample, sample_count);
+  const auto features = audio::features::ExtractLogFrequencyFeatureGrid(samples, frequency_bins, time_frames, start_sample, sample_count, fft_size_multiplier);
   audio::features::WriteFeatureTensor(features, output_file);
 
   if (!preview_prefix.empty()) {

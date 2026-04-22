@@ -55,21 +55,30 @@ std::vector<double> CropOrPad(const std::vector<double> &source_signal, std::siz
   return cropped;
 }
 
-FeatureTensor ExtractLogFrequencyFeatures(const std::vector<double> &source_signal, std::size_t resolution) {
+FeatureTensor ExtractLogFrequencyFeatures(const std::vector<double> &source_signal, std::size_t resolution, std::size_t fft_size_multiplier) {
+  return ExtractLogFrequencyFeatureGrid(source_signal, resolution, resolution, fft_size_multiplier);
+}
+
+FeatureTensor ExtractLogFrequencyFeatures(const std::vector<double> &source_signal, std::size_t resolution, std::size_t start_sample, std::size_t sample_count,
+                                          std::size_t fft_size_multiplier) {
+  return ExtractLogFrequencyFeatures(CropOrPad(source_signal, start_sample, sample_count), resolution, fft_size_multiplier);
+}
+
+FeatureTensor ExtractLogFrequencyFeatureGrid(const std::vector<double> &source_signal, std::size_t frequency_bins, std::size_t time_frames, std::size_t fft_size_multiplier) {
   constexpr std::size_t channel_count = 3;
   FeatureTensor features{
       .channels = channel_count,
-      .frequency_bins = resolution,
-      .time_frames = resolution,
-      .data = std::vector<float>(channel_count * resolution * resolution),
+      .frequency_bins = frequency_bins,
+      .time_frames = time_frames,
+      .data = std::vector<float>(channel_count * frequency_bins * time_frames),
   };
 
-  const auto magnitude = fft::spectrogram::CreateMelSpectrogram(source_signal, resolution);
+  const auto magnitude = fft::spectrogram::CreateLogFrequencySpectrogram(source_signal, frequency_bins, time_frames, fft_size_multiplier);
 
-  for (std::size_t frequency_bin = 0; frequency_bin < resolution; ++frequency_bin) {
-    for (std::size_t time_frame = 0; time_frame < resolution; ++time_frame) {
-      const double current = fft::spectrogram::BufferAt(magnitude, resolution, time_frame, frequency_bin);
-      const double previous = time_frame == 0 ? current : fft::spectrogram::BufferAt(magnitude, resolution, time_frame - 1, frequency_bin);
+  for (std::size_t frequency_bin = 0; frequency_bin < frequency_bins; ++frequency_bin) {
+    for (std::size_t time_frame = 0; time_frame < time_frames; ++time_frame) {
+      const double current = fft::spectrogram::BufferAt(magnitude, time_frames, time_frame, frequency_bin);
+      const double previous = time_frame == 0 ? current : fft::spectrogram::BufferAt(magnitude, time_frames, time_frame - 1, frequency_bin);
       const double delta = current - previous;
 
       features.At(static_cast<std::size_t>(FeatureChannel::LogFrequencyMagnitude), frequency_bin, time_frame) = Clamp01(current);
@@ -81,8 +90,9 @@ FeatureTensor ExtractLogFrequencyFeatures(const std::vector<double> &source_sign
   return features;
 }
 
-FeatureTensor ExtractLogFrequencyFeatures(const std::vector<double> &source_signal, std::size_t resolution, std::size_t start_sample, std::size_t sample_count) {
-  return ExtractLogFrequencyFeatures(CropOrPad(source_signal, start_sample, sample_count), resolution);
+FeatureTensor ExtractLogFrequencyFeatureGrid(const std::vector<double> &source_signal, std::size_t frequency_bins, std::size_t time_frames, std::size_t start_sample,
+                                             std::size_t sample_count, std::size_t fft_size_multiplier) {
+  return ExtractLogFrequencyFeatureGrid(CropOrPad(source_signal, start_sample, sample_count), frequency_bins, time_frames, fft_size_multiplier);
 }
 
 void WriteFeatureTensor(const FeatureTensor &features, const std::string &file_name) {

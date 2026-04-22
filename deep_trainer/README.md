@@ -113,6 +113,14 @@ For a default 512-resolution dataset, one model input has shape:
 3 x 512 x 512
 ```
 
+Rectangular tensors are supported. This is the preferred way to increase frequency detail without making time resolution and memory usage explode:
+
+```text
+3 x 1024 x 512
+3 x 2048 x 512
+3 x 4096 x 512
+```
+
 Preview BMP/PPM images are only for humans. The trainer should not depend on image files.
 
 ## Label Format
@@ -221,6 +229,12 @@ Baseline train:
 python -m deep_trainer.train --dataset-root datasets/synth_256_1k --epochs 30 --batch-size 8 --resolution 256 --amp --output-dir runs/baseline_256_1k
 ```
 
+Rectangular train:
+
+```bash
+python -m deep_trainer.train --dataset-root datasets/synth_2048x512_1k --epochs 30 --batch-size 2 --freq-bins 2048 --time-frames 512 --amp --output-dir runs/baseline_2048x512_1k
+```
+
 Fuller run:
 
 ```bash
@@ -239,6 +253,7 @@ Useful options:
 --num-workers 0
 --seed 1337
 --amp
+--tensorboard
 ```
 
 ### Training Loop
@@ -269,6 +284,44 @@ sequenceDiagram
 ```
 
 Use `best.pt` for prediction. `last.pt` is only the final epoch and may be overfit.
+
+### Metrics Dashboard
+
+Each run writes a plain CSV metrics file:
+
+```text
+runs/<run-name>/metrics.csv
+```
+
+Use `--tensorboard` to also write TensorBoard event logs:
+
+```bash
+python -m deep_trainer.train --dataset-root datasets/synth_256_1k --epochs 100 --batch-size 16 --resolution 256 --amp --tensorboard --output-dir runs/baseline_256_1k_long
+```
+
+Start TensorBoard:
+
+```bash
+tensorboard --logdir runs
+```
+
+Then open:
+
+```text
+http://localhost:6006
+```
+
+Logged metrics:
+
+```text
+train/loss
+train/activity_loss
+train/parameter_loss
+val/loss
+val/activity_loss
+val/parameter_loss
+optim/learning_rate
+```
 
 ## Prediction
 
@@ -305,6 +358,90 @@ flowchart LR
     H --> I
     I --> J["prediction.data"]
 ```
+
+## Evaluation Harness
+
+`evaluate.py` runs the full comparison loop for real holdout audio:
+
+```text
+real WAV
+  -> source SLFT + preview
+  -> checkpoint prediction
+  -> predicted oscillator .data
+  -> C++ player render
+  -> rendered SLFT + preview
+  -> summary metrics
+```
+
+Single-file evaluation:
+
+```bash
+python -m deep_trainer.evaluate --checkpoint runs/baseline_256_1k/best.pt --input sounds/o_a2_1.wav --output-dir sounds/eval/o_a2_1_eval --resolution 256
+```
+
+Evaluate a manifest:
+
+```bash
+python -m deep_trainer.evaluate --checkpoint runs/baseline_256_1k/best.pt --manifest sounds/manifest.csv --output-dir sounds/eval/baseline_256_1k --resolution 256 --limit 10
+```
+
+Rectangular evaluation:
+
+```bash
+python -m deep_trainer.evaluate --checkpoint runs/baseline_2048x512_1k/best.pt --manifest sounds/manifest.csv --output-dir sounds/eval/baseline_2048x512_1k --freq-bins 2048 --time-frames 512 --limit 10
+```
+
+Important options:
+
+```text
+--device cpu             use CPU for prediction, useful while the GPU is training
+--device cuda            use GPU for prediction
+--tool-mode wsl          call WSL-built C++ tools, default on this machine
+--note-frequency 110     override note inference for every item
+--velocity 2             player velocity percent, default matches synthetic training scale
+--activity-threshold .5  omit oscillator slots below this active probability
+--write-all-slots        write every oscillator slot
+```
+
+The harness tries to infer note frequency from names like `o_a2_1` or `o_as4_2`. Treat that as a convenience, not ground truth. Use `--note-frequency` when evaluating files whose names do not map cleanly to pitch.
+
+Outputs:
+
+```text
+output-dir/
+  config.json
+  summary.csv
+  <name>/
+    features/
+      <name>_source.slft
+      <name>_rendered.slft
+    predictions/
+      <name>_predicted.data
+    previews/
+      <name>_source_rgb.bmp
+      <name>_rendered_rgb.bmp
+    renders/
+      <name>_predicted.wav
+    metrics.json
+```
+
+Current metrics:
+
+```text
+feature_mae
+feature_mse
+feature_rmse
+feature_max_abs
+channel_0_mae / channel_0_mse
+channel_1_mae / channel_1_mse
+channel_2_mae / channel_2_mse
+waveform_mae
+waveform_mse
+source_rms
+rendered_rms
+```
+
+The feature metrics are the main early signal. Waveform metrics are included, but they are harsh because phase and timing differences can dominate even when two sounds are perceptually related.
 
 ## Interpreting Loss
 

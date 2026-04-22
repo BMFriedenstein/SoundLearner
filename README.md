@@ -122,6 +122,8 @@ Useful options:
 -i --input <input.wav>         source WAV file
 -o --output <output.slft>      feature tensor output
 -r --resolution <pixels>       output tensor resolution, default 512
+--freq-bins <pixels>           frequency bins, overrides square resolution
+--time-frames <pixels>         time frames, overrides square resolution
 -p --preview-prefix <path>     optional preview image prefix
 -t --crop-seconds <seconds>    fixed analysis window, default 5
 --crop-start-seconds <seconds> crop offset, default 0
@@ -129,6 +131,12 @@ Useful options:
 ```
 
 The extractor uses fixed-window cropping. Long WAV files are cropped. Short WAV files are zero-padded. This avoids stretching the time axis, which would hide the true temporal scale of the sound.
+
+`--resolution` is square shorthand. For higher frequency detail without exploding memory, prefer rectangular tensors:
+
+```bash
+./build/feature_extractor/feature_extractor -i input.wav -o output.slft --freq-bins 2048 --time-frames 512 -p preview/input
+```
 
 ## Feature Tensor
 
@@ -285,6 +293,17 @@ validation:   held-out synthetic plus curated real audio benchmark
 ```
 
 If memory becomes tight, prefer gradient accumulation over shrinking the input too aggressively. The frequency and time resolution are part of the signal.
+
+For oscillator recovery, rectangular inputs are often more useful than very large square inputs. A good high-resolution ladder is:
+
+```text
+3 x 512 x 512
+3 x 1024 x 512
+3 x 2048 x 512
+3 x 4096 x 512
+```
+
+This spends memory on frequency detail, where oscillator partials live, while keeping time frames manageable.
 
 ## Python Trainer
 
