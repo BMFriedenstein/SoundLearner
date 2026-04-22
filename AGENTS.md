@@ -64,6 +64,14 @@ Dataset builder:
 ./build/dataset_builder/dataset_builder -n 10 -t 5 -r 512
 ```
 
+Variable oscillator counts per sample:
+
+```bash
+./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 12 --freq-bins 1024 --time-frames 512
+```
+
+`-s/--instrument-size` and `-c/--uncoupled-oscilators` still work as fixed-count shortcuts. Prefer the min/max flags when you want the generator to cover a broader instrument space.
+
 Feature extractor:
 
 ```bash
@@ -84,6 +92,23 @@ Python trainer:
 python -m deep_trainer.train --dataset-root . --epochs 50 --batch-size 8 --resolution 512 --amp
 ```
 
+Trainer config file:
+
+```bash
+python -m deep_trainer.train --config deep_trainer/configs/school_v1_clean.toml
+```
+
+`train.py` now supports TOML or JSON configs. CLI flags override config-file values, which is handy for one-off width/output-dir changes.
+
+Dataset augmentor:
+
+```bash
+python -m deep_trainer.dataset_augmentor --input-root datasets/synth_1024x512_1k --output-root datasets/synth_1024x512_1k_realish --variants-per-input 2 --tool-mode wsl
+```
+
+This keeps oscillator labels untouched while augmenting the rendered audio before feature extraction. Use it to create a more recording-like sibling dataset rather than baking research-heavy augmentation logic into the C++ generator.
+The augmentor now also writes mel spectrogram PNG previews under `mel_preview/`.
+
 Prediction:
 
 ```bash
@@ -97,6 +122,22 @@ python -m deep_trainer.evaluate --checkpoint runs/baseline_256_1k/best.pt --inpu
 ```
 
 Use `--device cpu` if a long GPU training run is active. The harness calls the WSL-built C++ feature extractor/player by default.
+Evaluation runs now also write `ab_listen/` WAV pairs and mel spectrogram PNGs for original/predicted/A-B comparison.
+
+School scripts:
+
+```bat
+scripts\build_school_v1.bat
+scripts\train_school_v1.bat
+```
+
+Parameter-space collapse analysis:
+
+```bash
+python -m deep_trainer.analyze_parameter_space --dataset-root datasets/synth_1024x512_1k --evaluation-root sounds/eval/baseline_1024x512_1k_b4_e40_10 --output-dir sounds/eval/baseline_1024x512_1k_b4_e40_10/analysis
+```
+
+This compares true synthetic instrument vectors against predicted `.data` files using PCA/SVD, pairwise distances, and per-parameter variance. Use it when predictions all sound suspiciously similar.
 
 ## Current Data Formats
 

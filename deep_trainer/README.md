@@ -49,6 +49,9 @@ deep_trainer/
   losses.py               activity + parameter loss
   train.py                training CLI
   predict.py              prediction CLI
+  dataset_augmentor.py    audio-domain augmentation for synthetic datasets
+  analyze_parameter_space.py
+                          PCA/SVD collapse analysis for predicted .data files
   cnn_model_trainer.py    compatibility wrapper for old script name
   model_predictor.py      compatibility wrapper for old script name
   requirements.txt        Python dependencies
@@ -235,6 +238,83 @@ Rectangular train:
 python -m deep_trainer.train --dataset-root datasets/synth_2048x512_1k --epochs 30 --batch-size 2 --freq-bins 2048 --time-frames 512 --amp --output-dir runs/baseline_2048x512_1k
 ```
 
+## Dataset Augmentor
+
+`dataset_augmentor.py` creates a sibling dataset that keeps the original oscillator labels but makes the audio feel less sterile before feature extraction.
+
+The intended flow is:
+
+```text
+clean synthetic wav + clean oscillator labels
+  -> subtle audio-domain augmentation
+  -> regenerated .slft features
+  -> augmented training dataset
+```
+
+This keeps the target instrument unchanged while making the input side look more like a recording world.
+
+Current augmentation stages:
+
+1. random gain
+2. low/high tone tilt
+3. additive noise at a random SNR
+4. tiny sparse reverb
+5. mild saturation
+
+Example:
+
+```bash
+python -m deep_trainer.dataset_augmentor --input-root datasets/synth_1024x512_1k --output-root datasets/synth_1024x512_1k_realish --variants-per-input 2 --tool-mode wsl
+```
+
+Example with the new variable-oscillator generator:
+
+```bash
+python -m deep_trainer.dataset_augmentor --input-root datasets/synth_varcount_1024x512_1k --output-root datasets/synth_varcount_1024x512_1k_realish --variants-per-input 2 --tool-mode wsl
+```
+
+Outputs:
+
+```text
+output-root/
+  data0_aug00.wav
+  data0_aug00.data
+  data0_aug00.meta
+  features/data0_aug00.slft
+  metadata/data0_aug00.json
+  preview/data0_aug00_rgb.bmp
+  preview/data0_aug00_logfreq_rgb.bmp
+  mel_preview/data0_aug00_mel.png
+  augmentation_manifest.csv
+  augmentation_config.json
+```
+
+Useful options:
+
+```text
+--variants-per-input <count>
+--limit <count>
+--tool-mode wsl|native
+--resolution <square shorthand>
+--freq-bins <count>
+--time-frames <count>
+--skip-previews
+--gain-db-min / --gain-db-max
+--snr-db-min / --snr-db-max
+--low-shelf-db-min / --low-shelf-db-max
+--high-shelf-db-min / --high-shelf-db-max
+--reverb-mix-max
+--saturation-max
+--disable-noise
+--disable-tone
+--disable-reverb
+--disable-saturation
+```
+
+The goal is not to fake perfect microphones. It is to widen the synthetic input distribution enough that the model stops treating real audio as a totally alien species.
+
+Augmented datasets also get Python-generated mel spectrogram PNGs, which makes the processed schools much easier to inspect quickly.
+
 Fuller run:
 
 ```bash
@@ -244,6 +324,7 @@ python -m deep_trainer.train --dataset-root datasets/synth_512_5k --epochs 50 --
 Useful options:
 
 ```text
+--config configs/run.toml
 --max-oscillators 64
 --learning-rate 3e-4
 --weight-decay 1e-4
@@ -254,6 +335,31 @@ Useful options:
 --seed 1337
 --amp
 --tensorboard
+```
+
+### Config Files
+
+Training parameters can live in a TOML or JSON file instead of a long shell command.
+
+Example:
+
+```bash
+python -m deep_trainer.train --config deep_trainer/configs/school_v1_clean.toml
+```
+
+CLI flags still override config-file values, so this works too:
+
+```bash
+python -m deep_trainer.train --config deep_trainer/configs/school_v1_clean.toml --width 128 --output-dir runs/school_v1_clean_w128_b8_e40
+```
+
+Included starter configs:
+
+```text
+deep_trainer/configs/school_v1_clean.toml
+deep_trainer/configs/school_v1_light.toml
+deep_trainer/configs/school_v1_medium.toml
+deep_trainer/configs/school_v1_heavy.toml
 ```
 
 ### Training Loop
@@ -371,6 +477,7 @@ real WAV
   -> C++ player render
   -> rendered SLFT + preview
   -> summary metrics
+  -> A/B listen folder + mel spectrogram PNGs
 ```
 
 Single-file evaluation:
@@ -390,6 +497,82 @@ Rectangular evaluation:
 ```bash
 python -m deep_trainer.evaluate --checkpoint runs/baseline_2048x512_1k/best.pt --manifest sounds/manifest.csv --output-dir sounds/eval/baseline_2048x512_1k --freq-bins 2048 --time-frames 512 --limit 10
 ```
+
+## Parameter-Space Analysis
+
+When predictions start sounding suspiciously similar, analyze the oscillator vectors directly instead of relying on listening fatigue.
+
+The analyzer flattens each instrument into:
+
+```text
+max_oscillators x 8
+```
+
+where each slot includes the active flag plus the 7 oscillator CSV parameters. It then writes:
+
+- `pc_coordinates.csv`
+- `parameter_variance.csv`
+- `summary.json`
+- `scatter.svg`
+- `singular_values.svg`
+- `pairwise_distance_histogram.svg`
+- `report.md`
+
+Example: compare the synthetic training target space against real holdout predictions:
+
+```bash
+python -m deep_trainer.analyze_parameter_space --dataset-root datasets/synth_1024x512_1k --evaluation-root sounds/eval/baseline_1024x512_1k_b4_e40_10 --output-dir sounds/eval/baseline_1024x512_1k_b4_e40_10/analysis
+```
+
+Interpretation:
+
+- If `holdout_prediction` is a tight cluster in the PCA scatter while `synthetic_truth` spreads out, the model is collapsing toward one average recipe.
+- If the prediction singular values drop much faster, the model is using fewer effective degrees of freedom than the training space offers.
+- If predicted pairwise distances are much smaller than synthetic truth distances, the model outputs are samey in a way the charts can verify.
+
+Worked example from the current `1024x512` guitar holdout run:
+
+```text
+Synthetic Truth:    effective rank = 154.31, mean pairwise distance = 6.4836
+Holdout Prediction: effective rank =   1.42, mean pairwise distance = 0.1365
+```
+
+That is exactly the pattern you would expect from a one-fit-most collapse: the predicted instruments occupy a tiny fraction of the diversity present in the synthetic label space.
+
+Example charts from:
+
+```text
+sounds/eval/baseline_1024x512_1k_b4_e40_10/analysis
+```
+
+PCA scatter:
+
+![Parameter Space PCA Scatter](../sounds/eval/baseline_1024x512_1k_b4_e40_10/analysis/scatter.svg)
+
+Singular value spectrum:
+
+![Singular Value Spectrum](../sounds/eval/baseline_1024x512_1k_b4_e40_10/analysis/singular_values.svg)
+
+Pairwise distance histogram:
+
+![Pairwise Distance Histogram](../sounds/eval/baseline_1024x512_1k_b4_e40_10/analysis/pairwise_distance_histogram.svg)
+
+The summary JSON for that run is:
+
+```json
+{
+  "synthetic_truth": {
+    "effective_rank": 154.30629,
+    "mean_pairwise_distance": 6.483645
+  },
+  "holdout_prediction": {
+    "effective_rank": 1.420159,
+    "mean_pairwise_distance": 0.136467
+  }
+}
+```
+
+This analysis is meant to answer one practical question: are the predicted `.data` files genuinely spreading across parameter space, or are they all slight variations of the same averaged instrument? In this run, the answer was the second one.
 
 Important options:
 
@@ -411,10 +594,22 @@ Outputs:
 output-dir/
   config.json
   summary.csv
+  ab_listen/
+    <name>_original.wav
+    <name>_predicted.wav
+    mel/
+      <name>_original_mel.png
+      <name>_predicted_mel.png
+      <name>_ab_mel.png
+    ab_manifest.csv
   <name>/
     features/
       <name>_source.slft
       <name>_rendered.slft
+    mel/
+      <name>_source_mel.png
+      <name>_rendered_mel.png
+      <name>_ab_mel.png
     predictions/
       <name>_predicted.data
     previews/
@@ -423,6 +618,33 @@ output-dir/
     renders/
       <name>_predicted.wav
     metrics.json
+```
+
+## School Scripts
+
+Windows batch helpers are included for the current school ladder:
+
+```text
+scripts/build_school_v1.bat
+scripts/train_school_v1.bat
+```
+
+Build the ladder:
+
+```bat
+scripts\build_school_v1.bat
+```
+
+Train, evaluate, and analyze every stage:
+
+```bat
+scripts\train_school_v1.bat
+```
+
+Or run just one stage:
+
+```bat
+scripts\train_school_v1.bat light
 ```
 
 Current metrics:

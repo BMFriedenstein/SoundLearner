@@ -61,6 +61,13 @@ AGENTS.md           quick-start notes for future Codex/LLM sessions
 
 `clangd` is configured to read `build/compile_commands.json`, so generate or reconfigure the default build directory before relying on editor diagnostics.
 
+Automation helpers:
+
+```text
+scripts/build_school_v1.bat   build the current school dataset ladder
+scripts/train_school_v1.bat   train, evaluate, and analyze the current school ladder
+```
+
 To build with Clang once `clang++` is installed:
 
 ```bash
@@ -91,7 +98,24 @@ Useful options:
 -n --num-samples <count>       number of examples to generate
 -t --sample-time <seconds>     generated clip length
 -r --resolution <pixels>       feature and preview resolution
+--min-instrument-size <count>  minimum coupled oscillator count per sample
+--max-instrument-size <count>  maximum coupled oscillator count per sample
+--min-uncoupled-oscilators     minimum uncoupled oscillator count per sample
+--max-uncoupled-oscilators     maximum uncoupled oscillator count per sample
 --write-ppm-preview            also write PPM preview images
+```
+
+Old fixed-count flags still work:
+
+```text
+-s --instrument-size <count>
+-c --uncoupled-oscilators <count>
+```
+
+but they now mean "use the same count for every generated sample". For more realistic datasets, prefer per-sample ranges:
+
+```bash
+./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 12 --freq-bins 1024 --time-frames 512
 ```
 
 Outputs include:
@@ -137,6 +161,26 @@ The extractor uses fixed-window cropping. Long WAV files are cropped. Short WAV 
 ```bash
 ./build/feature_extractor/feature_extractor -i input.wav -o output.slft --freq-bins 2048 --time-frames 512 -p preview/input
 ```
+
+## Dataset Augmentation
+
+The new Python-side augmentor lets us build alternate schools of synthetic datasets that keep the same oscillator labels but pass the audio through a more recording-like world before feature extraction.
+
+```bash
+python -m deep_trainer.dataset_augmentor --input-root datasets/synth_1024x512_1k --output-root datasets/synth_1024x512_1k_realish --variants-per-input 2 --tool-mode wsl
+```
+
+This is the preferred place to experiment with:
+
+- gain variation
+- noise floor
+- tone tilt
+- tiny room coloration
+- mild saturation
+
+That keeps the C++ generator focused on clean instrument synthesis while letting the Python side iterate quickly on synthetic-to-real bridging.
+
+The augmentor now also writes Python-generated mel spectrogram PNGs under `mel_preview/`, which are much nicer for inspecting processed datasets than the old preview path alone.
 
 ## Feature Tensor
 
