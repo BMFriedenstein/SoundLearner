@@ -12,16 +12,16 @@ if not exist "%PYTHON_EXE%" (
 set "STAGE=%~1"
 if "%STAGE%"=="" set "STAGE=all"
 
-call :run_stage clean deep_trainer\configs\school_v1_clean.toml datasets\schools\oscillator_school_v1\00_clean_varcount_1024x512_1k runs\school_v1_clean_w96_b8_e40 sounds\eval\school_v1_clean_w96_b8_e40
+call :run_stage clean deep_trainer\configs\curriculum_v1_clean.toml datasets\curricula\oscillator_curriculum_v1\00_clean_varcount_1024x512_1k runs\curriculum_v1_clean_w96_b8_e40 sounds\eval\curriculum_v1_clean_w96_b8_e40
 if errorlevel 1 exit /b 1
-call :run_stage light deep_trainer\configs\school_v1_light.toml datasets\schools\oscillator_school_v1\10_realish_light_1024x512_1k runs\school_v1_light_w96_b8_e40 sounds\eval\school_v1_light_w96_b8_e40
+call :run_stage light deep_trainer\configs\curriculum_v1_light.toml datasets\curricula\oscillator_curriculum_v1\10_realish_light_1024x512_1k runs\curriculum_v1_light_w96_b8_e40 sounds\eval\curriculum_v1_light_w96_b8_e40
 if errorlevel 1 exit /b 1
-call :run_stage medium deep_trainer\configs\school_v1_medium.toml datasets\schools\oscillator_school_v1\20_realish_medium_1024x512_1k runs\school_v1_medium_w96_b8_e40 sounds\eval\school_v1_medium_w96_b8_e40
+call :run_stage medium deep_trainer\configs\curriculum_v1_medium.toml datasets\curricula\oscillator_curriculum_v1\20_realish_medium_1024x512_1k runs\curriculum_v1_medium_w96_b8_e40 sounds\eval\curriculum_v1_medium_w96_b8_e40
 if errorlevel 1 exit /b 1
-call :run_stage heavy deep_trainer\configs\school_v1_heavy.toml datasets\schools\oscillator_school_v1\30_realish_heavy_1024x512_1k runs\school_v1_heavy_w96_b8_e40 sounds\eval\school_v1_heavy_w96_b8_e40
+call :run_stage heavy deep_trainer\configs\curriculum_v1_heavy.toml datasets\curricula\oscillator_curriculum_v1\30_realish_heavy_1024x512_1k runs\curriculum_v1_heavy_w96_b8_e40 sounds\eval\curriculum_v1_heavy_w96_b8_e40
 if errorlevel 1 exit /b 1
 
-echo School v1 training ladder complete.
+echo Curriculum v1 training ladder complete.
 exit /b 0
 
 :run_stage

@@ -1,0 +1,16 @@
+dataset_root = "datasets/curricula/oscillator_curriculum_v1/10_realish_light_1024x512_1k"
+output_dir = "runs/curriculum_v1_light_w96_b8_e40"
+epochs = 40
+batch_size = 8
+learning_rate = 0.0003
+weight_decay = 0.0001
+validation_split = 0.15
+max_oscillators = 64
+freq_bins = 1024
+time_frames = 512
+width = 128
+dropout = 0.1
+num_workers = 0
+seed = 1337
+amp = true
+tensorboard = true

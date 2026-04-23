@@ -51,6 +51,8 @@ def add_train_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--amp", action="store_true", help="Use CUDA mixed precision.")
     parser.add_argument("--tensorboard", action="store_true", help="Write TensorBoard event logs if tensorboard is installed.")
+    parser.add_argument("--resume", type=Path, default=None, help="Resume a run from a checkpoint, including optimizer state and epoch.")
+    parser.add_argument("--init-checkpoint", type=Path, default=None, help="Initialize model weights from a checkpoint, but start a fresh run.")
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,7 +66,10 @@ def parse_args() -> argparse.Namespace:
     if pre_args.config is not None:
       config_defaults = load_config_file(pre_args.config)
       parser.set_defaults(**config_defaults)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.resume is not None and args.init_checkpoint is not None:
+      raise ValueError("--resume and --init-checkpoint are mutually exclusive")
+    return args
 
 
 def split_dataset(dataset: SoundLearnerDataset, validation_split: float, seed: int) -> tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
@@ -147,6 +152,24 @@ def save_checkpoint(
     )
 
 
+def load_checkpoint(path: Path, device: torch.device) -> dict[str, Any]:
+    if not path.exists():
+      raise FileNotFoundError(f"Checkpoint does not exist: {path}")
+    return torch.load(path, map_location=device, weights_only=False)
+
+
+def validate_checkpoint_config(checkpoint: dict[str, Any], expected: ModelConfig) -> None:
+    checkpoint_config = checkpoint.get("model_config")
+    if checkpoint_config is None:
+      raise ValueError("Checkpoint is missing model_config")
+    loaded = ModelConfig(**checkpoint_config)
+    if loaded != expected:
+      raise ValueError(
+          "Checkpoint model_config does not match requested training config: "
+          f"checkpoint={loaded}, requested={expected}"
+      )
+
+
 def write_metrics_row(path: Path, row: dict[str, float | int]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     file_exists = path.exists()
@@ -198,6 +221,7 @@ def main() -> None:
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler("cuda") if args.amp and device.type == "cuda" else None
     best_validation_loss = float("inf")
+    start_epoch = 1
     metrics_path = args.output_dir / "metrics.csv"
     writer = None
     if args.tensorboard:
@@ -206,9 +230,23 @@ def main() -> None:
       else:
         writer = SummaryWriter(log_dir=str(args.output_dir / "tensorboard"))
 
+    if args.resume is not None:
+      checkpoint = load_checkpoint(args.resume, device)
+      validate_checkpoint_config(checkpoint, config)
+      model.load_state_dict(checkpoint["model_state"])
+      optimizer.load_state_dict(checkpoint["optimizer_state"])
+      start_epoch = int(checkpoint["epoch"]) + 1
+      best_validation_loss = float(checkpoint.get("best_validation_loss", float("inf")))
+      print(f"Resuming from {args.resume} at epoch {start_epoch} with best_val={best_validation_loss:.6f}")
+    elif args.init_checkpoint is not None:
+      checkpoint = load_checkpoint(args.init_checkpoint, device)
+      validate_checkpoint_config(checkpoint, config)
+      model.load_state_dict(checkpoint["model_state"])
+      print(f"Initialized model weights from {args.init_checkpoint}")
+
     print(f"Training on {len(train_dataset)} examples, validating on {len(validation_dataset)} examples, device={device}")
     try:
-      for epoch in range(1, args.epochs + 1):
+      for epoch in range(start_epoch, start_epoch + args.epochs):
         train_metrics = run_epoch(model, train_loader, criterion, device, optimizer, scaler)
         with torch.no_grad():
           validation_metrics = run_epoch(model, validation_loader, criterion, device, None, None)

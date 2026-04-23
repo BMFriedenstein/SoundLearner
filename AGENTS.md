@@ -95,10 +95,18 @@ python -m deep_trainer.train --dataset-root . --epochs 50 --batch-size 8 --resol
 Trainer config file:
 
 ```bash
-python -m deep_trainer.train --config deep_trainer/configs/school_v1_clean.toml
+python -m deep_trainer.train --config deep_trainer/configs/curriculum_v1_clean.toml
 ```
 
 `train.py` now supports TOML or JSON configs. CLI flags override config-file values, which is handy for one-off width/output-dir changes.
+It also supports:
+
+```bash
+python -m deep_trainer.train --resume runs/some_run/last.pt
+python -m deep_trainer.train --init-checkpoint runs/previous_stage/best.pt
+```
+
+Use `--resume` to continue the same run. Use `--init-checkpoint` for curriculum fine-tuning into a new run directory.
 
 Dataset augmentor:
 
@@ -124,12 +132,28 @@ python -m deep_trainer.evaluate --checkpoint runs/baseline_256_1k/best.pt --inpu
 Use `--device cpu` if a long GPU training run is active. The harness calls the WSL-built C++ feature extractor/player by default.
 Evaluation runs now also write `ab_listen/` WAV pairs and mel spectrogram PNGs for original/predicted/A-B comparison.
 
-School scripts:
+Curriculum scripts:
 
 ```bat
-scripts\build_school_v1.bat
-scripts\train_school_v1.bat
+scripts\build_curriculum_v1.bat
+scripts\train_curriculum_v1.bat
+scripts\build_complexity_curriculum_v1.bat
+scripts\train_complexity_curriculum_v1.bat
 ```
+
+Complexity curriculum:
+
+```text
+c1: coupled 1..3,  uncoupled 0
+c2: coupled 1..5,  uncoupled 0
+c3: coupled 1..8,  uncoupled 0
+c4: coupled 1..12, uncoupled 0..2
+c5: coupled 1..20, uncoupled 0..4
+c6: coupled 1..32, uncoupled 0..8
+c7: coupled 1..64, uncoupled 0..12
+```
+
+These stages are meant to be trained progressively, initializing each stage from the previous stage's `best.pt`.
 
 Parameter-space collapse analysis:
 
