@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 
+from .differentiable_audio import denormalize_log_frequency
 from .model import ModelConfig, SoundLearnerNet
 from .slft import read_slft
 
@@ -25,7 +26,9 @@ def main() -> None:
     checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
     config = ModelConfig(**checkpoint["model_config"])
     model = SoundLearnerNet(config).to(device)
-    model.load_state_dict(checkpoint["model_state"])
+    incompatible = model.load_state_dict(checkpoint["model_state"], strict=False)
+    if incompatible.missing_keys:
+      print(f"Checkpoint is missing new model keys; initialized randomly: {', '.join(incompatible.missing_keys)}")
     model.eval()
 
     slft = read_slft(args.feature)
@@ -34,6 +37,9 @@ def main() -> None:
       prediction = model(features)
       activity = torch.sigmoid(prediction["activity_logits"])[0].cpu()
       parameters = prediction["parameters"][0].cpu()
+      predicted_note = None
+      if "f0_normalized" in prediction:
+        predicted_note = float(denormalize_log_frequency(prediction["f0_normalized"])[0].detach().cpu())
 
     rows: list[str] = []
     for slot_index in range(config.max_oscillators):
@@ -46,6 +52,8 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text("\n".join(rows) + ("\n" if rows else ""))
     print(f"Wrote {len(rows)} oscillator rows to {args.output}")
+    if predicted_note is not None:
+      print(f"Predicted f0: {predicted_note:.3f} Hz")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,9 @@ import wave
 import numpy as np
 import torch
 
+from .audio_features import FeatureSpec, extract_feature_tensor_from_wav, write_feature_preview_bmp, write_feature_tensor
 from .audio_preview import write_ab_mel_preview, write_mel_preview
+from .differentiable_audio import denormalize_log_frequency
 from .model import ModelConfig, SoundLearnerNet
 from .slft import read_slft
 
@@ -46,6 +48,7 @@ class EvaluationItem:
     name: str
     input_wav: Path
     source_feature: Path | None = None
+    note_frequency: float | None = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,7 +70,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--velocity", type=int, default=2, help="Player velocity percent. Synthetic training used 2.")
     parser.add_argument("--length", type=int, default=5, help="Rendered length in seconds.")
     parser.add_argument("--tool-mode", choices=["wsl", "native"], default="wsl")
-    parser.add_argument("--feature-extractor", type=Path, default=Path("build/feature_extractor/feature_extractor"))
     parser.add_argument("--player", type=Path, default=Path("build/player/player"))
     return parser.parse_args()
 
@@ -135,7 +137,9 @@ def read_manifest(path: Path) -> list[EvaluationItem]:
         input_wav = root / row["input_wav"]
         feature_value = row.get("feature_tensor") or ""
         source_feature = root / feature_value if feature_value else None
-        items.append(EvaluationItem(name=name, input_wav=input_wav, source_feature=source_feature))
+        note_value = row.get("note_frequency") or ""
+        note_frequency = float(note_value) if note_value else None
+        items.append(EvaluationItem(name=name, input_wav=input_wav, source_feature=source_feature, note_frequency=note_frequency))
     return items
 
 
@@ -169,7 +173,9 @@ def load_model(checkpoint_path: Path, requested_device: str) -> tuple[SoundLearn
       device = torch.device(requested_device)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model = SoundLearnerNet(ModelConfig(**checkpoint["model_config"])).to(device)
-    model.load_state_dict(checkpoint["model_state"])
+    incompatible = model.load_state_dict(checkpoint["model_state"], strict=False)
+    if incompatible.missing_keys:
+      print(f"Checkpoint is missing new model keys; initialized randomly: {', '.join(incompatible.missing_keys)}")
     model.eval()
     return model, device
 
@@ -181,13 +187,16 @@ def predict_instrument(
     output_path: Path,
     activity_threshold: float,
     write_all_slots: bool,
-) -> int:
+) -> tuple[int, float | None]:
     slft = read_slft(feature_path)
     features = torch.from_numpy(slft.data).unsqueeze(0).to(device)
     with torch.no_grad():
       prediction = model(features)
       activity = torch.sigmoid(prediction["activity_logits"])[0].cpu()
       parameters = prediction["parameters"][0].cpu()
+      predicted_note = None
+      if "f0_normalized" in prediction:
+        predicted_note = float(denormalize_log_frequency(prediction["f0_normalized"])[0].detach().cpu())
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     rows: list[str] = []
@@ -198,7 +207,7 @@ def predict_instrument(
       values[-1] = 1.0 if values[-1] >= 0.5 else 0.0
       rows.append(",".join(f"{value:.6f}" for value in values))
     output_path.write_text("\n".join(rows) + ("\n" if rows else ""))
-    return len(rows)
+    return len(rows), predicted_note
 
 
 def ensure_source_feature(args: argparse.Namespace, item: EvaluationItem, feature_path: Path, preview_prefix: Path) -> Path:
@@ -212,30 +221,18 @@ def ensure_source_feature(args: argparse.Namespace, item: EvaluationItem, featur
       except ValueError:
         pass
 
+    spec = FeatureSpec(
+        frequency_bins=frequency_bins(args),
+        time_frames=time_frames(args),
+        crop_seconds=args.crop_seconds,
+        crop_start_seconds=args.crop_start_seconds,
+    )
+    features = extract_feature_tensor_from_wav(item.input_wav, spec)
     feature_path.parent.mkdir(parents=True, exist_ok=True)
     preview_prefix.parent.mkdir(parents=True, exist_ok=True)
-    run_tool(
-        args,
-        [
-            str(args.feature_extractor.as_posix()),
-            "-i",
-            path_for_record(item.input_wav, repo_root()),
-            "-o",
-            path_for_record(feature_path, repo_root()),
-            "-r",
-            str(args.resolution),
-            "--freq-bins",
-            str(frequency_bins(args)),
-            "--time-frames",
-            str(time_frames(args)),
-            "-p",
-            path_for_record(preview_prefix, repo_root()),
-            "-t",
-            format_tool_number(args.crop_seconds),
-            "--crop-start-seconds",
-            format_tool_number(args.crop_start_seconds),
-        ],
-    )
+    write_feature_tensor(feature_path, features)
+    write_feature_preview_bmp(preview_prefix.with_name(preview_prefix.name + "_rgb.bmp"), features)
+    write_feature_preview_bmp(preview_prefix.with_name(preview_prefix.name + "_logfreq_rgb.bmp"), features)
     return feature_path
 
 
@@ -266,30 +263,18 @@ def render_prediction(args: argparse.Namespace, instrument_path: Path, note_freq
 
 
 def extract_render_feature(args: argparse.Namespace, rendered_wav: Path, feature_path: Path, preview_prefix: Path) -> Path:
+    spec = FeatureSpec(
+        frequency_bins=frequency_bins(args),
+        time_frames=time_frames(args),
+        crop_seconds=args.crop_seconds,
+        crop_start_seconds=args.crop_start_seconds,
+    )
+    features = extract_feature_tensor_from_wav(rendered_wav, spec)
     feature_path.parent.mkdir(parents=True, exist_ok=True)
     preview_prefix.parent.mkdir(parents=True, exist_ok=True)
-    run_tool(
-        args,
-        [
-            str(args.feature_extractor.as_posix()),
-            "-i",
-            path_for_record(rendered_wav, repo_root()),
-            "-o",
-            path_for_record(feature_path, repo_root()),
-            "-r",
-            str(args.resolution),
-            "--freq-bins",
-            str(frequency_bins(args)),
-            "--time-frames",
-            str(time_frames(args)),
-            "-p",
-            path_for_record(preview_prefix, repo_root()),
-            "-t",
-            format_tool_number(args.crop_seconds),
-            "--crop-start-seconds",
-            format_tool_number(args.crop_start_seconds),
-        ],
-    )
+    write_feature_tensor(feature_path, features)
+    write_feature_preview_bmp(preview_prefix.with_name(preview_prefix.name + "_rgb.bmp"), features)
+    write_feature_preview_bmp(preview_prefix.with_name(preview_prefix.name + "_logfreq_rgb.bmp"), features)
     return feature_path
 
 
@@ -398,6 +383,8 @@ def write_ab_artifacts(output_dir: Path, item_name: str, input_wav: Path, render
         "feature_mae": row["feature_mae"],
         "feature_rmse": row["feature_rmse"],
         "note_frequency": row["note_frequency"],
+        "note_source": row["note_source"],
+        "predicted_note_frequency": row["predicted_note_frequency"],
     }
     write_summary_row(manifest_path, manifest_row)
 
@@ -406,9 +393,20 @@ def evaluate_item(args: argparse.Namespace, model: SoundLearnerNet, device: torc
     item_dir = args.output_dir / item.name
     source_feature = ensure_source_feature(args, item, item_dir / "features" / f"{item.name}_source.slft", item_dir / "previews" / f"{item.name}_source")
     prediction_path = item_dir / "predictions" / f"{item.name}_predicted.data"
-    row_count = predict_instrument(model, device, source_feature, prediction_path, args.activity_threshold, args.write_all_slots)
+    row_count, predicted_note_frequency = predict_instrument(model, device, source_feature, prediction_path, args.activity_threshold, args.write_all_slots)
 
-    note_frequency = args.note_frequency if args.note_frequency is not None else infer_note_frequency(item.name)
+    if args.note_frequency is not None:
+      note_frequency = args.note_frequency
+      note_source = "override"
+    elif item.note_frequency is not None:
+      note_frequency = item.note_frequency
+      note_source = "manifest"
+    elif predicted_note_frequency is not None:
+      note_frequency = predicted_note_frequency
+      note_source = "predicted"
+    else:
+      note_frequency = infer_note_frequency(item.name)
+      note_source = "filename"
     rendered_wav = render_prediction(args, prediction_path, note_frequency, item_dir / "renders")
     rendered_feature = extract_render_feature(
         args,
@@ -427,6 +425,8 @@ def evaluate_item(args: argparse.Namespace, model: SoundLearnerNet, device: torc
         "rendered_wav": path_for_record(rendered_wav, repo_root()),
         "rendered_feature": path_for_record(rendered_feature, repo_root()),
         "note_frequency": note_frequency,
+        "note_source": note_source,
+        "predicted_note_frequency": predicted_note_frequency,
         "predicted_rows": row_count,
         **metrics,
     }
@@ -465,7 +465,7 @@ def main() -> None:
       write_ab_artifacts(args.output_dir, item.name, item.input_wav, repo_root() / row["rendered_wav"], row)
       print(
           f"  feature_mae={row['feature_mae']:.6f} feature_rmse={row['feature_rmse']:.6f} "
-          f"rows={row['predicted_rows']} note={row['note_frequency']:.3f}"
+          f"rows={row['predicted_rows']} note={row['note_frequency']:.3f} source={row['note_source']}"
       )
 
 

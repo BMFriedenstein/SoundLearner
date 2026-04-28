@@ -11,6 +11,23 @@ if not exist "%PYTHON_EXE%" (
 
 set "STAGE=%~1"
 if "%STAGE%"=="" set "STAGE=all"
+set "TRAIN_MODE=%~2"
+if "%TRAIN_MODE%"=="" set "TRAIN_MODE=parameter"
+
+if /i "%TRAIN_MODE%"=="parameter" (
+  set "RUN_SUFFIX="
+  set "EXTRA_TRAIN_ARGS="
+) else if /i "%TRAIN_MODE%"=="renderloss" (
+  set "RUN_SUFFIX=_renderloss"
+  set "EXTRA_TRAIN_ARGS=--activity-loss-weight 1.0 --parameter-loss-weight 2.0 --render-loss-weight 100.0 --render-rms-loss-weight 25.0 --render-loss-seconds 1.0 --render-loss-sample-rate 11025"
+) else if /i "%TRAIN_MODE%"=="renderloss_light" (
+  set "RUN_SUFFIX=_renderloss_light"
+  set "EXTRA_TRAIN_ARGS=--activity-loss-weight 1.0 --parameter-loss-weight 2.0 --render-loss-weight 50.0 --render-rms-loss-weight 10.0 --render-loss-seconds 0.5 --render-loss-sample-rate 8000"
+) else (
+  echo Unknown training mode "%TRAIN_MODE%".
+  echo Use: parameter ^| renderloss ^| renderloss_light
+  exit /b 1
+)
 
 call :run_stage clean deep_trainer\configs\curriculum_v1_clean.toml datasets\curricula\oscillator_curriculum_v1\00_clean_varcount_1024x512_1k runs\curriculum_v1_clean_w96_b8_e40 sounds\eval\curriculum_v1_clean_w96_b8_e40
 if errorlevel 1 exit /b 1
@@ -28,17 +45,21 @@ exit /b 0
 set "NAME=%~1"
 set "CONFIG=%~2"
 set "DATASET_ROOT=%~3"
-set "RUN_DIR=%~4"
-set "EVAL_DIR=%~5"
+set "BASE_RUN_DIR=%~4"
+set "BASE_EVAL_DIR=%~5"
+set "RUN_DIR=%BASE_RUN_DIR%%RUN_SUFFIX%"
+set "EVAL_DIR=%BASE_EVAL_DIR%%RUN_SUFFIX%"
 
 if /i not "%STAGE%"=="all" if /i not "%STAGE%"=="%NAME%" goto :eof
 
 echo ============================================================
 echo Running stage: %NAME%
 echo Config: %CONFIG%
+echo Mode: %TRAIN_MODE%
+echo Run dir: %RUN_DIR%
 echo ============================================================
 
-"%PYTHON_EXE%" -m deep_trainer.train --config "%CONFIG%"
+"%PYTHON_EXE%" -m deep_trainer.train --config "%CONFIG%" --output-dir "%RUN_DIR%" %EXTRA_TRAIN_ARGS%
 if errorlevel 1 exit /b 1
 
 "%PYTHON_EXE%" -m deep_trainer.evaluate --checkpoint "%RUN_DIR%\best.pt" --manifest sounds\manifest.csv --output-dir "%EVAL_DIR%" --freq-bins 1024 --time-frames 512 --device cpu

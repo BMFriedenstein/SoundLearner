@@ -1,25 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-import wave
 
 import numpy as np
 from PIL import Image
 
-
-def read_pcm16_mono(path: Path) -> tuple[int, np.ndarray]:
-    with wave.open(str(path), "rb") as handle:
-      channels = handle.getnchannels()
-      sample_width = handle.getsampwidth()
-      sample_rate = handle.getframerate()
-      frame_count = handle.getnframes()
-      frames = handle.readframes(frame_count)
-    if sample_width != 2:
-      raise ValueError(f"{path} uses {sample_width * 8}-bit samples; only 16-bit PCM WAV is supported.")
-    samples = np.frombuffer(frames, dtype="<i2").astype(np.float32) / 32768.0
-    if channels > 1:
-      samples = samples.reshape((-1, channels)).mean(axis=1)
-    return sample_rate, samples
+from .audio_features import inferno_like_colormap, read_pcm16_mono
 
 
 def hz_to_mel(hz: np.ndarray) -> np.ndarray:
@@ -82,25 +68,6 @@ def mel_spectrogram(samples: np.ndarray, sample_rate: int, n_fft: int = 2048, ho
     mel_db = np.clip(mel_db, -80.0, 0.0)
     normalized = (mel_db + 80.0) / 80.0
     return np.flipud(normalized.astype(np.float32))
-
-
-def inferno_like_colormap(values: np.ndarray) -> np.ndarray:
-    stops = np.array(
-        [
-            [0.0, 0.0, 4.0, 30.0],
-            [0.2, 52.0, 16.0, 92.0],
-            [0.4, 120.0, 28.0, 109.0],
-            [0.6, 187.0, 55.0, 84.0],
-            [0.8, 249.0, 142.0, 8.0],
-            [1.0, 252.0, 255.0, 164.0],
-        ],
-        dtype=np.float32,
-    )
-    positions = stops[:, 0]
-    red = np.interp(values, positions, stops[:, 1])
-    green = np.interp(values, positions, stops[:, 2])
-    blue = np.interp(values, positions, stops[:, 3])
-    return np.stack([red, green, blue], axis=-1).astype(np.uint8)
 
 
 def spectrogram_image_array(path: Path, width: int = 900, height: int = 320) -> np.ndarray:

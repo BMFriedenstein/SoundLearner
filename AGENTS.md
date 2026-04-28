@@ -13,7 +13,7 @@ The important architectural direction is:
 ```text
 WAV
   -> fixed crop/pad window
-  -> .slft audio feature tensor
+  -> Python-generated .slft audio feature tensor
   -> modern audio encoder
   -> structured oscillator parameter heads
   -> render predicted instrument
@@ -61,24 +61,30 @@ The current Clang native file uses `clang++-18`, matching the WSL toolchain avai
 Dataset builder:
 
 ```bash
-./build/dataset_builder/dataset_builder -n 10 -t 5 -r 512
+./build/dataset_builder/dataset_builder -n 10 -t 5
 ```
 
 Variable oscillator counts per sample:
 
 ```bash
-./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 12 --freq-bins 1024 --time-frames 512
+./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 12
+```
+
+F0-randomized generation:
+
+```bash
+./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 1 --max-instrument-size 8 --min-note-frequency 55 --max-note-frequency 440
 ```
 
 `-s/--instrument-size` and `-c/--uncoupled-oscilators` still work as fixed-count shortcuts. Prefer the min/max flags when you want the generator to cover a broader instrument space.
 
-Feature extractor:
+Dataset preparation / feature extraction:
 
 ```bash
-./build/feature_extractor/feature_extractor -i input.wav -o output.slft -r 512 -t 5
+python -m deep_trainer.prepare_dataset --dataset-root . --freq-bins 512 --time-frames 512 --crop-seconds 5
 ```
 
-Feature extractor behavior:
+Python feature prep behavior:
 
 - Long WAV files are cropped.
 - Short WAV files are zero-padded.
@@ -108,14 +114,40 @@ python -m deep_trainer.train --init-checkpoint runs/previous_stage/best.pt
 
 Use `--resume` to continue the same run. Use `--init-checkpoint` for curriculum fine-tuning into a new run directory.
 
+Audio-aligned render loss:
+
+```bash
+python -m deep_trainer.train --dataset-root datasets/my_dataset --freq-bins 1024 --time-frames 512 --render-loss-weight 1.0 --render-loss-seconds 1.0 --render-loss-sample-rate 11025
+```
+
+This keeps the old activity/parameter supervision but also adds a differentiable surrogate render + feature reconstruction loss so training is no longer graded only on oscillator-table similarity.
+
+Current `renderloss` implementation:
+
+```text
+predicted oscillator parameters
+  -> predicted f0
+  -> differentiable surrogate oscillator bank
+  -> surrogate waveform
+  -> multi-resolution differentiable 3-channel feature extraction
+  -> weighted feature reconstruction loss
+  -> RMS penalty against source WAV RMS
+```
+
+It is currently a first surrogate, not a faithful differentiable clone of the C++ player. If `val_render` barely moves, assume the signal may be too weak or too forgiving before assuming the code path is broken.
+
+The trainer also has an f0 head and a frequency-crowding penalty. The f0 head predicts log-normalized Hz and renderloss uses the predicted f0 when synthesizing the surrogate waveform. Track `val_f0_cents` for readable pitch error. Activity BCE is dynamically class-balanced by default because active oscillator slots are sparse. The crowding penalty discourages active oscillator slots from collapsing to the same frequency factor, but it detaches activity so the penalty cannot reward silence. RMS render loss is log-scaled so zero-energy predictions are punished more strongly.
+
 Dataset augmentor:
 
 ```bash
-python -m deep_trainer.dataset_augmentor --input-root datasets/synth_1024x512_1k --output-root datasets/synth_1024x512_1k_realish --variants-per-input 2 --tool-mode wsl
+python -m deep_trainer.dataset_augmentor --input-root datasets/synth_1024x512_1k --output-root datasets/synth_1024x512_1k_realish --variants-per-input 2
 ```
 
 This keeps oscillator labels untouched while augmenting the rendered audio before feature extraction. Use it to create a more recording-like sibling dataset rather than baking research-heavy augmentation logic into the C++ generator.
 The augmentor now also writes mel spectrogram PNG previews under `mel_preview/`.
+
+The current oscillator renderer uses a small octave frequency prior: `0.5, 1, 2, 4, 8, 16, 32` times f0, with a small detune window. New curriculum datasets randomize f0 over `55..440 Hz` by default.
 
 Prediction:
 
@@ -129,7 +161,7 @@ Evaluation harness:
 python -m deep_trainer.evaluate --checkpoint runs/baseline_256_1k/best.pt --input sounds/o_a2_1.wav --output-dir sounds/eval/o_a2_1_eval --resolution 256 --device cpu
 ```
 
-Use `--device cpu` if a long GPU training run is active. The harness calls the WSL-built C++ feature extractor/player by default.
+Use `--device cpu` if a long GPU training run is active. The harness now extracts features in Python and only calls the C++ player for rendering.
 Evaluation runs now also write `ab_listen/` WAV pairs and mel spectrogram PNGs for original/predicted/A-B comparison.
 
 Curriculum scripts:
@@ -155,6 +187,14 @@ c7: coupled 1..64, uncoupled 0..12
 
 These stages are meant to be trained progressively, initializing each stage from the previous stage's `best.pt`.
 
+Training wrappers support explicit objective modes:
+
+```bat
+scripts\train_complexity_curriculum_v1.bat c3 parameter
+scripts\train_complexity_curriculum_v1.bat c3 renderloss
+scripts\train_complexity_curriculum_v1.bat c3 renderloss_light
+```
+
 Parameter-space collapse analysis:
 
 ```bash
@@ -162,6 +202,14 @@ python -m deep_trainer.analyze_parameter_space --dataset-root datasets/synth_102
 ```
 
 This compares true synthetic instrument vectors against predicted `.data` files using PCA/SVD, pairwise distances, and per-parameter variance. Use it when predictions all sound suspiciously similar.
+
+Local analysis frontend:
+
+```powershell
+.\.venv\Scripts\python.exe -m deep_trainer.analysis_frontend
+```
+
+Open `http://127.0.0.1:8765`. The frontend lets the user drop a WAV, choose a checkpoint and PCA reference dataset, hear source vs predicted render, and inspect mel previews, SLFT previews, metrics, and the prediction's 2D PCA placement. It can render with model f0, a classical audio pitch estimate, or a manual note to isolate pitch failure from timbre failure. Runs are saved under `analysis_frontend/runs/`.
 
 ## Current Data Formats
 

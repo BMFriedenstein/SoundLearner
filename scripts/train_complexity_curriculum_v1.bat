@@ -11,8 +11,28 @@ if not exist "%PYTHON_EXE%" (
 
 set "TARGET_STAGE=%~1"
 if "%TARGET_STAGE%"=="" set "TARGET_STAGE=c7"
+set "TRAIN_MODE=%~2"
+if "%TRAIN_MODE%"=="" set "TRAIN_MODE=parameter"
+set "START_STAGE=%~3"
+if "%START_STAGE%"=="" set "START_STAGE=c1"
+
+if /i "%TRAIN_MODE%"=="parameter" (
+  set "RUN_SUFFIX=_balanced"
+  set "EXTRA_TRAIN_ARGS=--activity-loss-weight 3.0 --activity-positive-weight 0.0 --f0-loss-weight 5.0 --crowding-loss-weight 0.002"
+) else if /i "%TRAIN_MODE%"=="renderloss" (
+  set "RUN_SUFFIX=_renderloss_balanced"
+  set "EXTRA_TRAIN_ARGS=--activity-loss-weight 3.0 --activity-positive-weight 0.0 --parameter-loss-weight 5.0 --f0-loss-weight 10.0 --crowding-loss-weight 0.005 --render-loss-weight 20.0 --render-rms-loss-weight 2.5 --render-loss-seconds 1.0 --render-loss-sample-rate 11025"
+) else if /i "%TRAIN_MODE%"=="renderloss_light" (
+  set "RUN_SUFFIX=_renderloss_light_balanced"
+  set "EXTRA_TRAIN_ARGS=--activity-loss-weight 3.0 --activity-positive-weight 0.0 --parameter-loss-weight 5.0 --f0-loss-weight 5.0 --crowding-loss-weight 0.002 --render-loss-weight 10.0 --render-rms-loss-weight 1.0 --render-loss-seconds 0.5 --render-loss-sample-rate 8000"
+) else (
+  echo Unknown training mode "%TRAIN_MODE%".
+  echo Use: parameter ^| renderloss ^| renderloss_light
+  exit /b 1
+)
 
 set "PREV_CHECKPOINT="
+set "IN_ACTIVE_RANGE=0"
 
 call :run_stage c1 deep_trainer\configs\complexity_curriculum_v1_c1.toml datasets\curricula\complexity_curriculum_v1\c1_1to3_clean_1024x512_1k runs\complexity_curriculum_v1_c1_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c1_w128_b8_e20
 if errorlevel 1 exit /b 1
@@ -43,21 +63,29 @@ exit /b 0
 set "NAME=%~1"
 set "CONFIG=%~2"
 set "DATASET_ROOT=%~3"
-set "RUN_DIR=%~4"
-set "EVAL_DIR=%~5"
+set "BASE_RUN_DIR=%~4"
+set "BASE_EVAL_DIR=%~5"
+set "RUN_DIR=%BASE_RUN_DIR%%RUN_SUFFIX%"
+set "EVAL_DIR=%BASE_EVAL_DIR%%RUN_SUFFIX%"
+
+if /i "%NAME%"=="%START_STAGE%" set "IN_ACTIVE_RANGE=1"
+if not "%IN_ACTIVE_RANGE%"=="1" goto :eof
 
 echo ============================================================
 echo Running complexity stage: %NAME%
 echo Config: %CONFIG%
+echo Mode: %TRAIN_MODE%
+echo Start stage: %START_STAGE%
+echo Run dir: %RUN_DIR%
 if defined PREV_CHECKPOINT (
   echo Init checkpoint: %PREV_CHECKPOINT%
 )
 echo ============================================================
 
 if defined PREV_CHECKPOINT (
-  "%PYTHON_EXE%" -m deep_trainer.train --config "%CONFIG%" --init-checkpoint "%PREV_CHECKPOINT%"
+  "%PYTHON_EXE%" -m deep_trainer.train --config "%CONFIG%" --output-dir "%RUN_DIR%" --init-checkpoint "%PREV_CHECKPOINT%" %EXTRA_TRAIN_ARGS%
 ) else (
-  "%PYTHON_EXE%" -m deep_trainer.train --config "%CONFIG%"
+  "%PYTHON_EXE%" -m deep_trainer.train --config "%CONFIG%" --output-dir "%RUN_DIR%" %EXTRA_TRAIN_ARGS%
 )
 if errorlevel 1 exit /b 1
 

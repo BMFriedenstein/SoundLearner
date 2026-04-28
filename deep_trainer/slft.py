@@ -16,6 +16,29 @@ class SlftTensor:
     data: np.ndarray
 
 
+def write_slft(path: str | Path, data: np.ndarray, sample_rate: int = 44100) -> Path:
+    """Write a SoundLearner feature tensor."""
+    tensor_path = Path(path)
+    tensor_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if data.ndim != 3:
+      raise ValueError(f"SLFT tensor must be 3D, got shape {data.shape}")
+
+    channels, frequency_bins, time_frames = data.shape
+    array = np.asarray(data, dtype="<f4", order="C")
+    header = struct.pack(
+        "<4s5I",
+        b"SLFT",
+        1,
+        int(sample_rate),
+        int(channels),
+        int(frequency_bins),
+        int(time_frames),
+    )
+    tensor_path.write_bytes(header + array.tobytes())
+    return tensor_path
+
+
 def read_slft(path: str | Path) -> SlftTensor:
     """Read a SoundLearner feature tensor."""
     tensor_path = Path(path)
@@ -44,4 +67,3 @@ def read_slft(path: str | Path) -> SlftTensor:
         time_frames=time_frames,
         data=data,
     )
-

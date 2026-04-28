@@ -17,6 +17,7 @@ except ImportError:
     SummaryWriter = None
 
 from .dataset import SoundLearnerDataset, discover_examples
+from .differentiable_audio import RenderLossConfig
 from .losses import OscillatorLoss
 from .model import ModelConfig, SoundLearnerNet
 
@@ -53,6 +54,18 @@ def add_train_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--tensorboard", action="store_true", help="Write TensorBoard event logs if tensorboard is installed.")
     parser.add_argument("--resume", type=Path, default=None, help="Resume a run from a checkpoint, including optimizer state and epoch.")
     parser.add_argument("--init-checkpoint", type=Path, default=None, help="Initialize model weights from a checkpoint, but start a fresh run.")
+    parser.add_argument("--activity-loss-weight", type=float, default=1.0)
+    parser.add_argument("--parameter-loss-weight", type=float, default=10.0)
+    parser.add_argument("--activity-positive-weight", type=float, default=0.0, help="Positive class weight for activity BCE. Use 0 for dynamic batch balancing.")
+    parser.add_argument("--f0-loss-weight", type=float, default=1.0, help="Weight for predicted fundamental-frequency supervision.")
+    parser.add_argument("--crowding-loss-weight", type=float, default=0.0, help="Penalty for predicted oscillators clustering on the same frequency factor.")
+    parser.add_argument("--f0-min-frequency", type=float, default=40.0, help="Minimum Hz used for log-frequency f0 normalization.")
+    parser.add_argument("--f0-max-frequency", type=float, default=2000.0, help="Maximum Hz used for log-frequency f0 normalization.")
+    parser.add_argument("--render-loss-weight", type=float, default=0.0, help="Weight for differentiable rendered-feature reconstruction loss.")
+    parser.add_argument("--render-rms-loss-weight", type=float, default=0.0, help="Weight for rendered-vs-source RMS penalty.")
+    parser.add_argument("--render-loss-sample-rate", type=int, default=11025, help="Sample rate for differentiable surrogate render.")
+    parser.add_argument("--render-loss-seconds", type=float, default=1.0, help="Seconds of surrogate audio to render for feature loss.")
+    parser.add_argument("--render-loss-fft-size-multiplier", type=int, default=4, help="FFT multiplier for differentiable rendered-feature extraction.")
 
 
 def parse_args() -> argparse.Namespace:
@@ -98,7 +111,16 @@ def run_epoch(
 ) -> dict[str, float]:
     is_training = optimizer is not None
     model.train(is_training)
-    totals = {"loss": 0.0, "activity_loss": 0.0, "parameter_loss": 0.0}
+    totals = {
+        "loss": 0.0,
+        "activity_loss": 0.0,
+        "parameter_loss": 0.0,
+        "f0_loss": 0.0,
+        "f0_cents_mae": 0.0,
+        "crowding_loss": 0.0,
+        "render_feature_loss": 0.0,
+        "render_rms_loss": 0.0,
+    }
     count = 0
 
     for batch in loader:
@@ -106,7 +128,15 @@ def run_epoch(
       with torch.set_grad_enabled(is_training):
         with torch.autocast(device_type=device.type, enabled=scaler is not None):
           predictions = model(batch["features"])
-          loss, metrics = criterion(predictions, batch["target"], batch["mask"])
+          loss, metrics = criterion(
+              predictions,
+              batch["target"],
+              batch["mask"],
+              source_features=batch["features"],
+              note_frequency=batch["note_frequency"],
+              velocity=batch["velocity"],
+              source_rms=batch["source_rms"],
+          )
 
         if is_training:
           optimizer.zero_grad(set_to_none=True)
@@ -170,6 +200,14 @@ def validate_checkpoint_config(checkpoint: dict[str, Any], expected: ModelConfig
       )
 
 
+def load_model_state(model: SoundLearnerNet, checkpoint: dict[str, Any]) -> None:
+    incompatible = model.load_state_dict(checkpoint["model_state"], strict=False)
+    if incompatible.missing_keys:
+      print(f"Checkpoint is missing new model keys; initialized randomly: {', '.join(incompatible.missing_keys)}")
+    if incompatible.unexpected_keys:
+      print(f"Checkpoint has unused model keys: {', '.join(incompatible.unexpected_keys)}")
+
+
 def write_metrics_row(path: Path, row: dict[str, float | int]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     file_exists = path.exists()
@@ -186,9 +224,19 @@ def log_tensorboard(writer: Any, epoch: int, train_metrics: dict[str, float], va
     writer.add_scalar("train/loss", train_metrics["loss"], epoch)
     writer.add_scalar("train/activity_loss", train_metrics["activity_loss"], epoch)
     writer.add_scalar("train/parameter_loss", train_metrics["parameter_loss"], epoch)
+    writer.add_scalar("train/f0_loss", train_metrics["f0_loss"], epoch)
+    writer.add_scalar("train/f0_cents_mae", train_metrics["f0_cents_mae"], epoch)
+    writer.add_scalar("train/crowding_loss", train_metrics["crowding_loss"], epoch)
     writer.add_scalar("val/loss", validation_metrics["loss"], epoch)
     writer.add_scalar("val/activity_loss", validation_metrics["activity_loss"], epoch)
     writer.add_scalar("val/parameter_loss", validation_metrics["parameter_loss"], epoch)
+    writer.add_scalar("val/f0_loss", validation_metrics["f0_loss"], epoch)
+    writer.add_scalar("val/f0_cents_mae", validation_metrics["f0_cents_mae"], epoch)
+    writer.add_scalar("val/crowding_loss", validation_metrics["crowding_loss"], epoch)
+    writer.add_scalar("train/render_feature_loss", train_metrics["render_feature_loss"], epoch)
+    writer.add_scalar("val/render_feature_loss", validation_metrics["render_feature_loss"], epoch)
+    writer.add_scalar("train/render_rms_loss", train_metrics["render_rms_loss"], epoch)
+    writer.add_scalar("val/render_rms_loss", validation_metrics["render_rms_loss"], epoch)
     writer.add_scalar("optim/learning_rate", learning_rate, epoch)
     writer.flush()
 
@@ -217,7 +265,32 @@ def main() -> None:
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=device.type == "cuda")
     validation_loader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=device.type == "cuda")
 
-    criterion = OscillatorLoss()
+    render_config = None
+    if args.render_loss_weight > 0.0:
+      expected_frequency_bins = args.freq_bins if args.freq_bins is not None else args.resolution
+      expected_time_frames = args.time_frames if args.time_frames is not None else args.resolution
+      if expected_frequency_bins is None or expected_time_frames is None:
+        expected_frequency_bins = int(first_sample["features"].shape[1])
+        expected_time_frames = int(first_sample["features"].shape[2])
+      render_config = RenderLossConfig(
+          frequency_bins=expected_frequency_bins,
+          time_frames=expected_time_frames,
+          sample_rate=args.render_loss_sample_rate,
+          render_seconds=args.render_loss_seconds,
+          fft_size_multiplier=args.render_loss_fft_size_multiplier,
+      )
+    criterion = OscillatorLoss(
+        activity_weight=args.activity_loss_weight,
+        parameter_weight=args.parameter_loss_weight,
+        activity_positive_weight=args.activity_positive_weight,
+        f0_weight=args.f0_loss_weight,
+        crowding_weight=args.crowding_loss_weight,
+        render_weight=args.render_loss_weight,
+        render_rms_weight=args.render_rms_loss_weight,
+        f0_min_frequency=args.f0_min_frequency,
+        f0_max_frequency=args.f0_max_frequency,
+        render_config=render_config,
+    ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler("cuda") if args.amp and device.type == "cuda" else None
     best_validation_loss = float("inf")
@@ -233,15 +306,18 @@ def main() -> None:
     if args.resume is not None:
       checkpoint = load_checkpoint(args.resume, device)
       validate_checkpoint_config(checkpoint, config)
-      model.load_state_dict(checkpoint["model_state"])
-      optimizer.load_state_dict(checkpoint["optimizer_state"])
+      load_model_state(model, checkpoint)
+      try:
+        optimizer.load_state_dict(checkpoint["optimizer_state"])
+      except ValueError as exc:
+        print(f"Checkpoint optimizer state is incompatible with the current model; starting optimizer fresh: {exc}")
       start_epoch = int(checkpoint["epoch"]) + 1
       best_validation_loss = float(checkpoint.get("best_validation_loss", float("inf")))
       print(f"Resuming from {args.resume} at epoch {start_epoch} with best_val={best_validation_loss:.6f}")
     elif args.init_checkpoint is not None:
       checkpoint = load_checkpoint(args.init_checkpoint, device)
       validate_checkpoint_config(checkpoint, config)
-      model.load_state_dict(checkpoint["model_state"])
+      load_model_state(model, checkpoint)
       print(f"Initialized model weights from {args.init_checkpoint}")
 
     print(f"Training on {len(train_dataset)} examples, validating on {len(validation_dataset)} examples, device={device}")
@@ -261,6 +337,11 @@ def main() -> None:
             f"val_loss={validation_metrics['loss']:.6f} "
             f"val_activity={validation_metrics['activity_loss']:.6f} "
             f"val_params={validation_metrics['parameter_loss']:.6f} "
+            f"val_f0={validation_metrics['f0_loss']:.6f} "
+            f"val_f0_cents={validation_metrics['f0_cents_mae']:.1f} "
+            f"val_crowd={validation_metrics['crowding_loss']:.6f} "
+            f"val_render={validation_metrics['render_feature_loss']:.6f} "
+            f"val_rms={validation_metrics['render_rms_loss']:.6f} "
             f"best_val={best_validation_loss:.6f}"
         )
 
@@ -271,9 +352,19 @@ def main() -> None:
                 "train_loss": train_metrics["loss"],
                 "train_activity_loss": train_metrics["activity_loss"],
                 "train_parameter_loss": train_metrics["parameter_loss"],
+                "train_f0_loss": train_metrics["f0_loss"],
+                "train_f0_cents_mae": train_metrics["f0_cents_mae"],
+                "train_crowding_loss": train_metrics["crowding_loss"],
+                "train_render_feature_loss": train_metrics["render_feature_loss"],
+                "train_render_rms_loss": train_metrics["render_rms_loss"],
                 "val_loss": validation_metrics["loss"],
                 "val_activity_loss": validation_metrics["activity_loss"],
                 "val_parameter_loss": validation_metrics["parameter_loss"],
+                "val_f0_loss": validation_metrics["f0_loss"],
+                "val_f0_cents_mae": validation_metrics["f0_cents_mae"],
+                "val_crowding_loss": validation_metrics["crowding_loss"],
+                "val_render_feature_loss": validation_metrics["render_feature_loss"],
+                "val_render_rms_loss": validation_metrics["render_rms_loss"],
                 "best_validation_loss": best_validation_loss,
                 "learning_rate": learning_rate,
             },

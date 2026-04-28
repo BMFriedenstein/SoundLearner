@@ -2,13 +2,13 @@
 
 SoundLearner is an experiment in learning a compact synthesizer model from audio.
 
-The project generates labelled audio from an oscillator-based instrument model, extracts fixed-size audio feature tensors, and aims to train a model that maps an input sound back to synthesizer parameters. The long-term goal is not just to classify sounds, but to recover enough structure that the player can resynthesize similar sounds from MIDI, embedded instruments, and eventually DAW plugin workflows.
+The project generates labelled audio from an oscillator-based instrument model, prepares fixed-size Python-generated audio feature tensors, and aims to train a model that maps an input sound back to synthesizer parameters. The long-term goal is not just to classify sounds, but to recover enough structure that the player can resynthesize similar sounds from MIDI, embedded instruments, and eventually DAW plugin workflows.
 
 ```mermaid
 flowchart LR
     A["Oscillator Instrument"] --> B["dataset_builder"]
     B --> C["Generated WAV + Labels"]
-    D["Real WAV"] --> E["feature_extractor"]
+    D["Real WAV"] --> E["Python Feature Pipeline"]
     C --> E
     E --> F["SLFT Feature Tensor"]
     F --> G["deep_trainer"]
@@ -25,10 +25,9 @@ The repo currently contains:
 
 1. `instrument` - oscillator-based sound generation.
 2. `dataset_builder` - synthetic training data generation with known oscillator labels.
-3. `feature_extractor` - WAV to fixed-size feature tensor conversion.
-4. `deep_trainer` - PyTorch training and prediction pipeline for `.slft` tensors.
-5. `player` - instrument model loading and WAV rendering.
-6. `Analyse` - older analysis scripts and experiments.
+3. `deep_trainer` - Python feature prep, training, prediction, and evaluation pipeline for `.slft` tensors.
+4. `player` - instrument model loading and WAV rendering.
+5. `Analyse` - older analysis scripts and experiments.
 
 ## Playback Roadmap
 
@@ -49,12 +48,13 @@ The DAW plugin is a longer-term target. A VST-style plugin would let the learned
 - [x] Add basic WAV read and write.
 - [x] Add instrument model file write.
 - [x] Build generated deep learning dataset.
-- [x] Add standalone feature extractor.
+- [x] Move feature extraction to the Python ML toolchain.
 - [x] Add flexible feature resolution.
 - [x] Add fixed-window crop/pad feature extraction.
 - [x] Write canonical `.slft` feature tensors.
 - [x] Add real-audio holdout evaluation flow.
 - [x] Add parameter-space collapse analysis.
+- [x] Add local analysis frontend for A/B listening and visual inspection.
 - [x] Replace legacy TensorFlow trainer.
 - [x] Add modern supervised baseline.
 - [x] Add curriculum-based dataset generation.
@@ -99,13 +99,13 @@ meson compile -C build
 Generate a small synthetic dataset:
 
 ```bash
-./build/dataset_builder/dataset_builder -n 10 -t 5 -r 512
+./build/dataset_builder/dataset_builder -n 10 -t 5
 ```
 
-Extract features from a WAV:
+Prepare features from a WAV:
 
 ```bash
-./build/feature_extractor/feature_extractor -i input.wav -o output.slft -t 5
+python -m deep_trainer.prepare_dataset --dataset-root . --freq-bins 512 --time-frames 512 --crop-seconds 5
 ```
 
 Train the PyTorch baseline:
@@ -113,6 +113,14 @@ Train the PyTorch baseline:
 ```bash
 python -m deep_trainer.train --dataset-root . --epochs 50 --batch-size 8 --resolution 512 --amp
 ```
+
+Run the local analysis workbench:
+
+```powershell
+.\.venv\Scripts\python.exe -m deep_trainer.analysis_frontend
+```
+
+Open `http://127.0.0.1:8765`, drop a WAV, and compare source vs predicted render with mel previews and PCA placement.
 
 The intended flow is:
 
@@ -127,7 +135,7 @@ generated or recorded WAV
 
 ## Build
 
-The C++ tools are built with Meson and C++23.
+The native audio tools are built with Meson and C++23.
 
 ```bash
 meson setup build -Dcpp_std=c++23
@@ -140,8 +148,6 @@ If the build directory already exists:
 meson setup build --reconfigure -Dcpp_std=c++23
 meson compile -C build
 ```
-
-The native tools currently depend on FFTW3.
 
 ## Developer Tooling
 
@@ -159,11 +165,21 @@ AGENTS.md           quick-start notes for future Codex/LLM sessions
 Automation helpers:
 
 ```text
-scripts/build_curriculum_v1.bat   build the current curriculum dataset ladder
-scripts/train_curriculum_v1.bat   train, evaluate, and analyze the current curriculum ladder
-scripts/build_complexity_curriculum_v1.bat   build the progressive complexity curriculum
-scripts/train_complexity_curriculum_v1.bat   fine-tune through the complexity curriculum stages
+scripts/build_datasets.py                 main dataset-build orchestrator
+scripts/build_curriculum_v1.bat           wrapper for oscillator_v1 dataset builds
+scripts/train_curriculum_v1.bat           train, evaluate, and analyze the current curriculum ladder
+scripts/build_complexity_curriculum_v1.bat wrapper for complexity_v1 dataset builds
+scripts/train_complexity_curriculum_v1.bat fine-tune through the complexity curriculum stages
 ```
+
+Set `DATASET_WORKERS` before running the build scripts to fan dataset generation out across multiple `dataset_builder` processes:
+
+```bat
+set DATASET_WORKERS=8
+scripts\build_complexity_curriculum_v1.bat
+```
+
+The orchestration now lives in Python, and the batch files are just thin wrappers.
 
 To build with Clang once `clang++` is installed:
 

@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from .audio_features import read_pcm16_mono, resample_linear
 from .slft import read_slft
 
 
@@ -20,6 +21,10 @@ TARGET_CHANNELS = 1 + OSCILLATOR_PARAMETER_COUNT
 class ExamplePath:
     feature_path: Path
     target_path: Path
+    audio_path: Path | None = None
+    audio_rms: float | None = None
+    note_frequency: float | None = None
+    velocity: float | None = None
 
 
 def _resolve_dataset_path(root: Path, candidate: str | Path) -> Path:
@@ -40,7 +45,19 @@ def _examples_from_metadata(root: Path) -> list[ExamplePath]:
       feature_path = _resolve_dataset_path(root, metadata["analysis"]["feature_path"])
       target_path = _resolve_dataset_path(root, metadata["target"]["oscillator_csv_path"])
       if feature_path.exists() and target_path.exists():
-        examples.append(ExamplePath(feature_path=feature_path, target_path=target_path))
+        target = metadata.get("target", {})
+        audio = metadata.get("audio", {})
+        audio_path = _resolve_dataset_path(root, audio["path"]) if "path" in audio else None
+        examples.append(
+            ExamplePath(
+                feature_path=feature_path,
+                target_path=target_path,
+                audio_path=audio_path,
+                audio_rms=float(audio["rms"]) if "rms" in audio else None,
+                note_frequency=float(target["note_frequency"]) if "note_frequency" in target else None,
+                velocity=float(target["velocity"]) if "velocity" in target else None,
+            )
+        )
     return examples
 
 
@@ -81,6 +98,14 @@ def read_oscillator_csv(path: str | Path, max_oscillators: int) -> tuple[np.ndar
     return target, mask
 
 
+def read_audio_rms(path: Path, target_sample_rate: int = 44100) -> float:
+    sample_rate, samples = read_pcm16_mono(path)
+    samples = resample_linear(samples, sample_rate, target_sample_rate)
+    if samples.size == 0:
+      return 0.0
+    return float(np.sqrt(np.mean(np.square(samples.astype(np.float64)))))
+
+
 class SoundLearnerDataset(Dataset):
     def __init__(
         self,
@@ -112,10 +137,21 @@ class SoundLearnerDataset(Dataset):
           )
 
       target, mask = read_oscillator_csv(example.target_path, self.max_oscillators)
+      active_count = max(float(mask.sum()), 1.0)
+      note_frequency = example.note_frequency if example.note_frequency is not None else 1000.0
+      velocity = example.velocity if example.velocity is not None else 1.0 / active_count
+      source_rms = example.audio_rms
+      if source_rms is None and example.audio_path is not None and example.audio_path.exists():
+        source_rms = read_audio_rms(example.audio_path)
+      if source_rms is None:
+        source_rms = 0.0
       return {
           "features": torch.from_numpy(slft.data.astype(np.float32)),
           "target": torch.from_numpy(target),
           "mask": torch.from_numpy(mask),
+          "note_frequency": torch.tensor(note_frequency, dtype=torch.float32),
+          "velocity": torch.tensor(velocity, dtype=torch.float32),
+          "source_rms": torch.tensor(source_rms, dtype=torch.float32),
           "feature_path": str(example.feature_path),
           "target_path": str(example.target_path),
       }

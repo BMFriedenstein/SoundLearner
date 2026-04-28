@@ -5,14 +5,13 @@ import csv
 from dataclasses import dataclass
 import json
 from pathlib import Path
-import shlex
 import shutil
-import subprocess
 from typing import Any
 import wave
 
 import numpy as np
 
+from .audio_features import FeatureSpec, extract_feature_tensor_from_wav, write_feature_preview_bmp, write_feature_tensor
 from .audio_preview import write_mel_preview
 
 @dataclass(frozen=True)
@@ -31,14 +30,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--variants-per-input", type=int, default=1)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--seed", type=int, default=1337)
-    parser.add_argument("--tool-mode", choices=["wsl", "native"], default="wsl")
-    parser.add_argument("--feature-extractor", type=Path, default=Path("build/feature_extractor/feature_extractor"))
     parser.add_argument("--resolution", type=int, default=None)
     parser.add_argument("--freq-bins", type=int, default=None)
     parser.add_argument("--time-frames", type=int, default=None)
     parser.add_argument("--crop-seconds", type=float, default=None)
     parser.add_argument("--crop-start-seconds", type=float, default=0.0)
-    parser.add_argument("--write-ppm-preview", action="store_true")
     parser.add_argument("--skip-previews", action="store_true")
     parser.add_argument("--skip-mel-previews", action="store_true")
 
@@ -64,34 +60,6 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def path_to_wsl(path: Path) -> str:
-    resolved = path.resolve()
-    drive = resolved.drive.rstrip(":").lower()
-    rest = resolved.as_posix().split(":", 1)[-1]
-    if drive:
-        return f"/mnt/{drive}{rest}"
-    return resolved.as_posix()
-
-
-def run_tool(args: argparse.Namespace, command: list[str]) -> None:
-    root = repo_root()
-    if args.tool_mode == "native":
-        completed = subprocess.run(command, cwd=root, text=True, capture_output=True)
-        if completed.returncode != 0:
-            print(completed.stdout)
-            print(completed.stderr)
-            completed.check_returncode()
-        return
-
-    quoted = " ".join(shlex.quote(arg) for arg in command)
-    bash_command = f"cd {shlex.quote(path_to_wsl(root))} && {quoted}"
-    completed = subprocess.run(["bash", "-lc", bash_command], text=True, capture_output=True)
-    if completed.returncode != 0:
-        print(completed.stdout)
-        print(completed.stderr)
-        completed.check_returncode()
-
-
 def path_for_record(path: Path, root: Path) -> str:
     try:
         return path.resolve().relative_to(root.resolve()).as_posix()
@@ -101,13 +69,6 @@ def path_for_record(path: Path, root: Path) -> str:
 
 def db_to_linear(value_db: float) -> float:
     return float(10.0 ** (value_db / 20.0))
-
-
-def format_tool_number(value: float | int) -> str:
-    numeric = float(value)
-    if numeric.is_integer():
-        return str(int(numeric))
-    return str(numeric)
 
 
 def clamp_audio(signal: np.ndarray) -> np.ndarray:
@@ -263,7 +224,6 @@ def build_metadata(
     frequency_bins: int,
     time_frames: int,
     augmentation: dict[str, float],
-    write_ppm_preview: bool,
 ) -> dict[str, Any]:
     source_metadata = source_item.metadata
     source_target = dict(source_metadata.get("target", {}))
@@ -271,9 +231,6 @@ def build_metadata(
         "spectrogram_rgb": f"{preview_prefix}_rgb.bmp",
         "log_frequency_rgb": f"{preview_prefix}_logfreq_rgb.bmp",
     }
-    if write_ppm_preview:
-        previews["spectrogram_ppm"] = f"{preview_prefix}.ppm"
-        previews["log_frequency_ppm"] = f"{preview_prefix}_logfreq.ppm"
 
     return {
         "id": sample_id,
@@ -346,29 +303,17 @@ def main() -> None:
 
             resolution, frequency_bins, time_frames = output_feature_shape(args, item.metadata)
             crop_seconds = output_crop_seconds(args, item.metadata)
-
-            command = [
-                str(args.feature_extractor.as_posix()),
-                "-i",
-                path_for_record(output_wav, root),
-                "-o",
-                path_for_record(output_feature, root),
-                "-r",
-                str(resolution),
-                "--freq-bins",
-                str(frequency_bins),
-                "--time-frames",
-                str(time_frames),
-                "-t",
-                format_tool_number(crop_seconds),
-                "--crop-start-seconds",
-                format_tool_number(args.crop_start_seconds),
-            ]
+            spec = FeatureSpec(
+                frequency_bins=frequency_bins,
+                time_frames=time_frames,
+                crop_seconds=crop_seconds,
+                crop_start_seconds=args.crop_start_seconds,
+            )
+            features = extract_feature_tensor_from_wav(output_wav, spec)
+            write_feature_tensor(output_feature, features)
             if not args.skip_previews:
-                command.extend(["-p", path_for_record(preview_prefix, root)])
-            if args.write_ppm_preview:
-                command.append("--write-ppm-preview")
-            run_tool(args, command)
+                write_feature_preview_bmp(preview_prefix.with_name(preview_prefix.name + "_rgb.bmp"), features)
+                write_feature_preview_bmp(preview_prefix.with_name(preview_prefix.name + "_logfreq_rgb.bmp"), features)
             mel_preview_path: str | None = None
             if not args.skip_mel_previews:
                 mel_output = output_root / "mel_preview" / f"{sample_id}_mel.png"
@@ -387,7 +332,6 @@ def main() -> None:
                 frequency_bins=frequency_bins,
                 time_frames=time_frames,
                 augmentation=augmentation,
-                write_ppm_preview=args.write_ppm_preview,
             )
             if mel_preview_path is not None:
                 metadata.setdefault("previews", {})["mel_spectrogram_png"] = mel_preview_path
@@ -425,14 +369,11 @@ def main() -> None:
         "variants_per_input": args.variants_per_input,
         "limit": args.limit,
         "seed": args.seed,
-        "tool_mode": args.tool_mode,
-        "feature_extractor": str(args.feature_extractor),
         "resolution": args.resolution,
         "freq_bins": args.freq_bins,
         "time_frames": args.time_frames,
         "crop_seconds": args.crop_seconds,
         "crop_start_seconds": args.crop_start_seconds,
-        "write_ppm_preview": args.write_ppm_preview,
         "skip_previews": args.skip_previews,
         "skip_mel_previews": args.skip_mel_previews,
         "gain_db_range": [args.gain_db_min, args.gain_db_max],

@@ -82,6 +82,7 @@ class SoundLearnerNet(nn.Module):
       )
       self.activity_head = nn.Linear(width * 8, config.max_oscillators)
       self.parameter_head = nn.Linear(width * 8, config.max_oscillators * OSCILLATOR_PARAMETER_COUNT)
+      self.f0_head = nn.Linear(width * 8, 1)
 
     def forward(self, features: torch.Tensor) -> dict[str, torch.Tensor]:
       x = self.stem(features)
@@ -91,12 +92,13 @@ class SoundLearnerNet(nn.Module):
       activity_logits = self.activity_head(x)
       parameters = torch.sigmoid(self.parameter_head(x))
       parameters = parameters.view(-1, self.config.max_oscillators, OSCILLATOR_PARAMETER_COUNT)
+      f0_normalized = torch.sigmoid(self.f0_head(x)).squeeze(-1)
       return {
           "activity_logits": activity_logits,
           "parameters": parameters,
+          "f0_normalized": f0_normalized,
       }
 
 
 def build_model(input_channels: int, max_oscillators: int, width: int = 64, dropout: float = 0.1) -> SoundLearnerNet:
     return SoundLearnerNet(ModelConfig(input_channels=input_channels, max_oscillators=max_oscillators, width=width, dropout=dropout))
-

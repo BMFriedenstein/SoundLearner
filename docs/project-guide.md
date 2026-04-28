@@ -15,12 +15,13 @@ Useful options:
 ```text
 -n --num-samples <count>       number of examples to generate
 -t --sample-time <seconds>     generated clip length
--r --resolution <pixels>       feature and preview resolution
 --min-instrument-size <count>  minimum coupled oscillator count per sample
 --max-instrument-size <count>  maximum coupled oscillator count per sample
 --min-uncoupled-oscilators     minimum uncoupled oscillator count per sample
 --max-uncoupled-oscilators     maximum uncoupled oscillator count per sample
---write-ppm-preview            also write PPM preview images
+--note-frequency <hz>          fixed generated base note frequency
+--min-note-frequency <hz>      minimum generated base note frequency
+--max-note-frequency <hz>      maximum generated base note frequency
 ```
 
 Old fixed-count flags still work:
@@ -33,7 +34,7 @@ Old fixed-count flags still work:
 but they now mean "use the same count for every generated sample". For more realistic datasets, prefer per-sample ranges:
 
 ```bash
-./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 12 --freq-bins 1024 --time-frames 512
+./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 12 --min-note-frequency 55 --max-note-frequency 440
 ```
 
 Outputs include:
@@ -42,42 +43,55 @@ Outputs include:
 dataN.wav                      generated audio
 dataN.data                     legacy oscillator data
 dataN.meta                     legacy metadata
-features/dataN.slft            canonical feature tensor
-metadata/dataN.json            structured metadata
-preview/dataN_rgb.bmp          linear-frequency RGB preview
-preview/dataN_logfreq_rgb.bmp  log-frequency RGB preview
 ```
 
-By default, preview images are BMP RGB files. PPM files are only written when requested.
+Feature tensors, metadata JSON, and previews are prepared afterward by the Python pipeline.
 
-## Feature Extractor
+Prepared outputs include:
 
-`feature_extractor` converts a WAV file into the same feature tensor format used by the generated dataset.
+```text
+features/dataN.slft            canonical feature tensor
+metadata/dataN.json            structured metadata
+preview/dataN_rgb.bmp          feature preview
+preview/dataN_logfreq_rgb.bmp  feature preview alias
+mel_preview/dataN_mel.png      mel spectrogram preview
+```
+
+The current oscillator generator no longer samples completely free frequency factors. It now renders oscillators against a deliberately small octave anchor ladder with a small detune window around each anchor:
+
+```text
+0.5*f0, 1*f0, 2*f0, 4*f0, 8*f0, 16*f0, 32*f0
+```
+
+This is intentionally simple while f0 prediction is being debugged. The curriculum build scripts also randomize the generated base note over `55..440 Hz`, so the model cannot learn a constant f0 shortcut.
+
+## Dataset Preparation
+
+`deep_trainer.prepare_dataset` converts dataset WAV files into the `.slft` tensors and previews used by training and evaluation.
 
 ```bash
-./build/feature_extractor/feature_extractor -i input.wav -o output.slft
+python -m deep_trainer.prepare_dataset --dataset-root . --freq-bins 1024 --time-frames 512 --crop-seconds 5
 ```
 
 Useful options:
 
 ```text
--i --input <input.wav>         source WAV file
--o --output <output.slft>      feature tensor output
--r --resolution <pixels>       output tensor resolution, default 512
+--dataset-root <path>          dataset folder containing dataN.wav files
+--resolution <pixels>          square output tensor resolution, default unset
 --freq-bins <pixels>           frequency bins, overrides square resolution
 --time-frames <pixels>         time frames, overrides square resolution
--p --preview-prefix <path>     optional preview image prefix
 -t --crop-seconds <seconds>    fixed analysis window, default 5
 --crop-start-seconds <seconds> crop offset, default 0
---write-ppm-preview            also write a PPM preview
+--skip-previews                skip BMP feature previews
+--skip-mel-previews            skip mel PNG previews
 ```
 
-The extractor uses fixed-window cropping. Long WAV files are cropped. Short WAV files are zero-padded. This avoids stretching the time axis, which would hide the true temporal scale of the sound.
+The Python feature pipeline uses fixed-window cropping. Long WAV files are cropped. Short WAV files are zero-padded. This avoids stretching the time axis, which would hide the true temporal scale of the sound.
 
 `--resolution` is square shorthand. For higher frequency detail without exploding memory, prefer rectangular tensors:
 
 ```bash
-./build/feature_extractor/feature_extractor -i input.wav -o output.slft --freq-bins 2048 --time-frames 512 -p preview/input
+python -m deep_trainer.prepare_dataset --dataset-root . --freq-bins 2048 --time-frames 512 --crop-seconds 5
 ```
 
 ## Dataset Augmentation
@@ -85,7 +99,7 @@ The extractor uses fixed-window cropping. Long WAV files are cropped. Short WAV 
 The Python-side augmentor builds alternate curricula of synthetic datasets that keep the same oscillator labels but pass the audio through a more recording-like world before feature extraction.
 
 ```bash
-python -m deep_trainer.dataset_augmentor --input-root datasets/synth_1024x512_1k --output-root datasets/synth_1024x512_1k_realish --variants-per-input 2 --tool-mode wsl
+python -m deep_trainer.dataset_augmentor --input-root datasets/synth_1024x512_1k --output-root datasets/synth_1024x512_1k_realish --variants-per-input 2
 ```
 
 Use it to experiment with:
@@ -117,6 +131,7 @@ c7: coupled 1..64, uncoupled 0..12
 Build it:
 
 ```bat
+set DATASET_WORKERS=8
 scripts\build_complexity_curriculum_v1.bat
 ```
 
@@ -133,6 +148,10 @@ scripts\train_complexity_curriculum_v1.bat c4
 ```
 
 The complexity curriculum configs default to `width = 128`, `batch_size = 8`, and `20` epochs per stage.
+
+Dataset orchestration now lives in [../scripts/build_datasets.py](../scripts/build_datasets.py), with the batch files acting as thin wrappers.
+
+The build path supports process-level parallel dataset generation through the `DATASET_WORKERS` environment variable. It now merges raw audio/labels first and then prepares Python-side feature tensors and previews afterward.
 
 ## Feature Tensor
 

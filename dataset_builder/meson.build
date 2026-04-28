@@ -7,7 +7,6 @@ executable(
   dataset_builder_sources,
   dependencies : [
     instrument_dep,
-    fftw_dep,
   ],
   install : false,
 )

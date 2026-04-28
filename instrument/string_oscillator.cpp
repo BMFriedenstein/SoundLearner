@@ -15,6 +15,7 @@
 #include "instrument/string_oscillator.h"
 
 #include <algorithm>
+#include <array>
 #include <iostream>
 #include <random>
 #include <sstream>
@@ -22,8 +23,35 @@
 namespace instrument {
 namespace oscillator {
 namespace {
+constexpr std::array<double, 7> kFrequencyAnchors = {
+    0.5,
+    1.0,
+    2.0,
+    4.0,
+    8.0,
+    16.0,
+    32.0,
+};
+
 double ClampRenderedFrequency(double frequency) {
   return std::clamp(frequency, 0.0, k_max_rendered_frequency);
+}
+
+template <std::size_t N>
+double QuantizedFrequencyFactor(double normalized_factor, const std::array<double, N> &anchors, double detune_ratio) {
+  const double clamped = std::clamp(normalized_factor, 0.0, 1.0);
+  const double scaled = clamped * static_cast<double>(anchors.size());
+  const std::size_t anchor_index = std::min<std::size_t>(static_cast<std::size_t>(scaled), anchors.size() - 1);
+  const double local = std::clamp(scaled - static_cast<double>(anchor_index), 0.0, 1.0);
+  const double detune = 1.0 + ((local - 0.5) * 2.0 * detune_ratio);
+  return anchors[anchor_index] * detune;
+}
+
+double StructuredFrequencyFactor(double normalized_factor, bool is_coupled) {
+  if (is_coupled) {
+    return QuantizedFrequencyFactor(normalized_factor, kFrequencyAnchors, k_coupled_detune_ratio);
+  }
+  return QuantizedFrequencyFactor(normalized_factor, kFrequencyAnchors, k_uncoupled_detune_ratio);
 }
 } // namespace
 
@@ -49,8 +77,7 @@ void StringOccilator::PrimeString(double freq, double velocity) {
   const double frequency_decay(k_max_freq_decay_rate + freq_decay_range * frequency_decay_factor);
   const double amplitude_factor(k_min_amp_cutoff + amp_range * start_amplitude_factor);
   const double amplitude_attack(k_min_amp_attack_rate + amp_attack_range * amplitude_attack_factor);
-  const double max_freq_factor(base_frequency_coupled ? k_max_coupled_freq_factor : k_max_uncoupled_freq_factor);
-  const double frequency_factor(k_min_freq_factor + (max_freq_factor - k_min_freq_factor) * start_frequency_factor);
+  const double frequency_factor = StructuredFrequencyFactor(start_frequency_factor, base_frequency_coupled);
   amplitude_state = 0.0;
   sample_pos = 0U;
   in_amplitude_decay = false;
@@ -188,10 +215,10 @@ std::unique_ptr<StringOccilator> StringOccilator::CreateStringFromCsv(const std:
   const double amplitude_factor = result.size() > 0 ? std::stod(result[0]) : real_distr(stat_rand_eng) / 8;
   const double freq_factor = result.size() > 1 ? std::stod(result[1]) : real_distr(stat_rand_eng);
   const double phase = result.size() > 2 ? std::stod(result[2]) : real_distr(stat_rand_eng);
-  const double amplitude_decay = result.size() > 4 ? std::stod(result[4]) : real_distr(stat_rand_eng);
-  const double amplitude_attack = result.size() > 5 ? std::stod(result[5]) : real_distr(stat_rand_eng);
-  const double frequency_decay = result.size() > 6 ? std::stod(result[6]) : real_distr(stat_rand_eng);
-  const bool is_coupled = result.size() > 7 ? std::stod(result[7]) > 0.5 : true;
+  const double amplitude_decay = result.size() > 3 ? std::stod(result[3]) : real_distr(stat_rand_eng);
+  const double amplitude_attack = result.size() > 4 ? std::stod(result[4]) : real_distr(stat_rand_eng);
+  const double frequency_decay = result.size() > 5 ? std::stod(result[5]) : real_distr(stat_rand_eng);
+  const bool is_coupled = result.size() > 6 ? std::stod(result[6]) > 0.5 : true;
 
   return std::make_unique<StringOccilator>(phase, freq_factor, amplitude_factor, amplitude_decay, amplitude_attack, frequency_decay, is_coupled);
 }
