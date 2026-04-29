@@ -1,4 +1,4 @@
-dataset_root = "datasets/curricula/complexity_curriculum_v1/c7_1to64_plus12_uncoupled_1024x512_1k"
+dataset_root = "datasets/curricula/complexity_curriculum_v1/c7_1to64_coupled_1024x512_1k"
 output_dir = "runs/complexity_curriculum_v1_c7_w128_b8_e20"
 epochs = 20
 batch_size = 8

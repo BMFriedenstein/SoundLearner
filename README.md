@@ -59,6 +59,7 @@ The DAW plugin is a longer-term target. A VST-style plugin would let the learned
 - [x] Add modern supervised baseline.
 - [x] Add curriculum-based dataset generation.
 - [x] Add progressive complexity curriculum scaffolding.
+- [x] Add adaptive curriculum supervisor for metric-gated grade promotion.
 - [ ] Add dataset manifest generation.
 
 ### ML Path
@@ -166,6 +167,8 @@ Automation helpers:
 
 ```text
 scripts/build_datasets.py                 main dataset-build orchestrator
+scripts/run_adaptive_curriculum_v1.bat    metric-gated adaptive dataset/train supervisor
+scripts/run_adaptive_curriculum_v2_2048.bat high-resolution adaptive supervisor, current recommended path
 scripts/build_curriculum_v1.bat           wrapper for oscillator_v1 dataset builds
 scripts/train_curriculum_v1.bat           train, evaluate, and analyze the current curriculum ladder
 scripts/build_complexity_curriculum_v1.bat wrapper for complexity_v1 dataset builds
@@ -203,6 +206,7 @@ Detailed implementation notes live under [docs/](./docs/README.md).
 
 Useful links:
 
+- [Adaptive Curriculum](./docs/adaptive-curriculum.md)
 - [Dataset Discovery](./docs/dataset-discovery.md)
 - [Project Guide](./docs/project-guide.md)
 - [Trainer Guide](./docs/trainer.md)
@@ -227,6 +231,7 @@ Recommended shape:
 ```text
 audio feature tensor
   -> modern audio/image encoder
+  -> coordinate-aware pitch/timbre features
   -> latent embedding
   -> structured oscillator-parameter heads
   -> resynthesis-based evaluation
@@ -234,7 +239,8 @@ audio feature tensor
 
 Current priorities:
 
-1. Train a strong encoder-regressor baseline on `.slft` tensors.
+1. Run the `v2_2048` adaptive curriculum: `2048x512` tensors, width-192 GroupNorm model, fixed seven/eight-oscillator bridge grades, then stricter variable-count training.
 2. Evaluate by resynthesizing predicted parameters back to audio.
 3. Use real non-generated WAVs as the real benchmark.
-4. Add uncertainty or mixture-style outputs only if direct regression keeps collapsing to bland averages.
+4. Keep generated training coupled-only until harmonic recovery is stable.
+5. Add uncertainty or mixture-style outputs only if direct regression keeps collapsing to bland averages.

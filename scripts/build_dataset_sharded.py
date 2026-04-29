@@ -22,6 +22,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-uncoupled-oscilators", type=int, required=True)
     parser.add_argument("--min-note-frequency", type=float, default=55.0)
     parser.add_argument("--max-note-frequency", type=float, default=440.0)
+    parser.add_argument("--min-frequency-factor", type=float, default=0.0)
+    parser.add_argument("--max-frequency-factor", type=float, default=1.0)
+    parser.add_argument("--coupled-frequency-factors", default="")
+    parser.add_argument("--require-fundamental", action="store_true")
     parser.add_argument("--freq-bins", type=int, required=True)
     parser.add_argument("--time-frames", type=int, required=True)
     parser.add_argument("--fft-size-multiplier", type=int, default=4)
@@ -89,8 +93,14 @@ def run_shard(shard_dir: Path, sample_count: int, args: argparse.Namespace, shar
         f"--min-uncoupled-oscilators {args.min_uncoupled_oscilators} "
         f"--max-uncoupled-oscilators {args.max_uncoupled_oscilators} "
         f"--min-note-frequency {args.min_note_frequency} "
-        f"--max-note-frequency {args.max_note_frequency}"
+        f"--max-note-frequency {args.max_note_frequency} "
+        f"--min-frequency-factor {args.min_frequency_factor} "
+        f"--max-frequency-factor {args.max_frequency_factor}"
     )
+    if args.require_fundamental:
+      command += " --require-fundamental"
+    if args.coupled_frequency_factors:
+      command += f" --coupled-frequency-factors {args.coupled_frequency_factors}"
     result = subprocess.run(["wsl", "bash", "-lc", command], text=True, capture_output=True)
     if result.returncode != 0:
       raise RuntimeError(
@@ -145,6 +155,7 @@ def prepare_dataset(output_root: Path, args: argparse.Namespace) -> None:
 def main() -> None:
     args = parse_args()
     output_root = args.output_root.resolve()
+    output_root.parent.mkdir(parents=True, exist_ok=True)
     counts = shard_counts(args.num_samples, args.workers)
     shard_root = Path(tempfile.mkdtemp(prefix=f"{output_root.name}_shards_", dir=str(output_root.parent)))
 

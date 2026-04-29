@@ -10,7 +10,6 @@ from .differentiable_audio import (
     RenderLossConfig,
     denormalize_log_frequency,
     frequency_crowding_loss,
-    normalize_log_frequency,
 )
 
 class OscillatorLoss(nn.Module):
@@ -19,6 +18,7 @@ class OscillatorLoss(nn.Module):
         activity_weight: float = 1.0,
         parameter_weight: float = 10.0,
         activity_positive_weight: float = 0.0,
+        activity_count_weight: float = 0.0,
         f0_weight: float = 1.0,
         crowding_weight: float = 0.0,
         render_weight: float = 0.0,
@@ -31,6 +31,7 @@ class OscillatorLoss(nn.Module):
       self.activity_weight = activity_weight
       self.parameter_weight = parameter_weight
       self.activity_positive_weight = activity_positive_weight
+      self.activity_count_weight = activity_count_weight
       self.f0_weight = f0_weight
       self.crowding_weight = crowding_weight
       self.render_weight = render_weight
@@ -66,6 +67,14 @@ class OscillatorLoss(nn.Module):
       else:
         positive_weight = (negative_count / positive_count).clamp(1.0, 32.0)
       activity_loss = F.binary_cross_entropy_with_logits(predictions["activity_logits"], activity_target, pos_weight=positive_weight)
+      activity_probability = torch.sigmoid(predictions["activity_logits"])
+      target_activity_count = activity_target.sum(dim=1)
+      soft_activity_count = activity_probability.sum(dim=1)
+      hard_activity_count = (activity_probability >= 0.5).sum(dim=1).to(activity_target.dtype)
+      activity_count_loss = F.smooth_l1_loss(soft_activity_count, target_activity_count)
+      activity_soft_count_mae = torch.mean(torch.abs(soft_activity_count - target_activity_count))
+      activity_hard_count_mae = torch.mean(torch.abs(hard_activity_count - target_activity_count))
+      activity_probability_mae = torch.mean(torch.abs(activity_probability - activity_target))
 
       active_count = mask.sum().clamp_min(1.0)
       parameter_loss_per_value = F.smooth_l1_loss(predictions["parameters"], parameter_target, reduction="none")
@@ -78,10 +87,10 @@ class OscillatorLoss(nn.Module):
       crowding_loss = torch.zeros((), device=predictions["parameters"].device)
       render_note_frequency = note_frequency
       if note_frequency is not None and "f0_normalized" in predictions:
-        target_f0 = normalize_log_frequency(note_frequency, self.f0_min_frequency, self.f0_max_frequency)
-        f0_loss = F.smooth_l1_loss(predictions["f0_normalized"], target_f0)
         render_note_frequency = denormalize_log_frequency(predictions["f0_normalized"], self.f0_min_frequency, self.f0_max_frequency)
-        f0_cents_mae = torch.mean(torch.abs(1200.0 * torch.log2(render_note_frequency.clamp_min(1e-6) / note_frequency.clamp_min(1e-6))))
+        log2_error = torch.log2(render_note_frequency.clamp_min(1e-6) / note_frequency.clamp_min(1e-6))
+        f0_loss = torch.mean(torch.abs(log2_error))
+        f0_cents_mae = torch.mean(torch.abs(1200.0 * log2_error))
 
       if self.crowding_weight > 0.0:
         crowding_loss = frequency_crowding_loss(predictions["parameters"], predictions["activity_logits"])
@@ -116,6 +125,7 @@ class OscillatorLoss(nn.Module):
 
       total = (
           self.activity_weight * activity_loss
+          + self.activity_count_weight * activity_count_loss
           + self.parameter_weight * parameter_loss
           + self.f0_weight * f0_loss
           + self.crowding_weight * crowding_loss
@@ -125,6 +135,10 @@ class OscillatorLoss(nn.Module):
       metrics = {
           "loss": float(total.detach().cpu()),
           "activity_loss": float(activity_loss.detach().cpu()),
+          "activity_count_loss": float(activity_count_loss.detach().cpu()),
+          "activity_soft_count_mae": float(activity_soft_count_mae.detach().cpu()),
+          "activity_hard_count_mae": float(activity_hard_count_mae.detach().cpu()),
+          "activity_probability_mae": float(activity_probability_mae.detach().cpu()),
           "parameter_loss": float(parameter_loss.detach().cpu()),
           "f0_loss": float(f0_loss.detach().cpu()),
           "f0_cents_mae": float(f0_cents_mae.detach().cpu()),

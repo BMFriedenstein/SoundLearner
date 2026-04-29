@@ -52,6 +52,7 @@ public:
   std::string ToCsv();
   std::string ToJson();
   std::unique_ptr<StringOccilator> TuneString(uint8_t amount);
+  static void SetUntunedFrequencyFactorRange(double minimum, double maximum);
   static std::unique_ptr<StringOccilator> CreateUntunedString(bool is_coupled = true);
   static std::unique_ptr<StringOccilator> CreateStringFromCsv(const std::string &csv_string);
 

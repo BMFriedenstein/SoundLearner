@@ -1,0 +1,171 @@
+name = "adaptive_curriculum_v1"
+
+[dataset]
+root = "datasets/curricula/adaptive_curriculum_v1"
+samples_per_grade = 1000
+sample_time = 5
+freq_bins = 1024
+time_frames = 512
+fft_size_multiplier = 4
+workers = 8
+min_note_frequency = 55.0
+max_note_frequency = 440.0
+
+[training]
+run_root = "runs/adaptive_curriculum_v1"
+epochs_per_attempt = 5
+max_attempts_per_grade = 6
+batch_size = 8
+learning_rate = 0.0003
+weight_decay = 0.0001
+validation_split = 0.15
+max_oscillators = 64
+freq_bins = 1024
+time_frames = 512
+width = 128
+dropout = 0.1
+coordinate_channels = true
+num_workers = 0
+seed = 1337
+amp = true
+tensorboard = true
+activity_loss_weight = 3.0
+activity_count_loss_weight = 0.5
+parameter_loss_weight = 5.0
+activity_positive_weight = 0.0
+f0_loss_weight = 12.0
+crowding_loss_weight = 0.005
+f0_min_frequency = 40.0
+f0_max_frequency = 2000.0
+render_loss_weight = 20.0
+render_rms_loss_weight = 2.5
+render_loss_sample_rate = 11025
+render_loss_seconds = 1.0
+render_loss_fft_size_multiplier = 4
+
+[real_evaluation]
+enabled = false
+manifest = "sounds/manifest.csv"
+limit = 10
+device = "cpu"
+
+[[grades]]
+name = "g01_single_oscillator"
+rel_path = "g01_1_clean_1024x512_1k"
+min_instrument_size = 1
+max_instrument_size = 1
+min_uncoupled_oscilators = 0
+max_uncoupled_oscilators = 0
+min_frequency_factor = 0.21428571428571427
+max_frequency_factor = 0.21428571428571427
+coupled_frequency_factors = [0.21428571428571427]
+require_fundamental = true
+min_epochs = 5
+max_attempts = 8
+max_val_activity_loss = 0.025
+max_val_parameter_loss = 0.045
+max_val_f0_cents_mae = 80.0
+
+[[grades]]
+name = "g02_two_oscillators"
+rel_path = "g02_1to2_clean_1024x512_1k"
+min_instrument_size = 2
+max_instrument_size = 2
+min_uncoupled_oscilators = 0
+max_uncoupled_oscilators = 0
+min_frequency_factor = 0.35714285714285715
+max_frequency_factor = 0.35714285714285715
+coupled_frequency_factors = [0.21428571428571427, 0.35714285714285715]
+require_fundamental = true
+min_epochs = 5
+max_attempts = 8
+max_val_activity_loss = 0.03
+max_val_parameter_loss = 0.055
+max_val_f0_cents_mae = 110.0
+
+[[grades]]
+name = "g03_three_oscillators"
+rel_path = "g03_3_coupled_1024x512_1k"
+min_instrument_size = 3
+max_instrument_size = 3
+min_uncoupled_oscilators = 0
+max_uncoupled_oscilators = 0
+min_frequency_factor = 0.35714285714285715
+max_frequency_factor = 0.5
+coupled_frequency_factors = [0.21428571428571427, 0.35714285714285715, 0.5]
+require_fundamental = true
+min_epochs = 5
+max_attempts = 8
+max_val_activity_loss = 0.03
+max_val_parameter_loss = 0.047
+max_val_f0_cents_mae = 100.0
+
+[[grades]]
+name = "g04_four_oscillators"
+rel_path = "g04_4_coupled_1024x512_1k"
+min_instrument_size = 4
+max_instrument_size = 4
+min_uncoupled_oscilators = 0
+max_uncoupled_oscilators = 0
+min_frequency_factor = 0.21428571428571427
+max_frequency_factor = 0.5
+coupled_frequency_factors = [0.21428571428571427, 0.35714285714285715, 0.5, 0.6428571428571429]
+require_fundamental = true
+min_epochs = 5
+max_attempts = 8
+max_val_activity_loss = 0.028
+max_val_parameter_loss = 0.05
+max_val_f0_cents_mae = 120.0
+
+[[grades]]
+name = "g05_five_oscillators"
+rel_path = "g05_5_coupled_1024x512_1k"
+min_instrument_size = 5
+max_instrument_size = 5
+min_uncoupled_oscilators = 0
+max_uncoupled_oscilators = 0
+min_frequency_factor = 0.21428571428571427
+max_frequency_factor = 0.7857142857142857
+coupled_frequency_factors = [0.21428571428571427, 0.35714285714285715, 0.5, 0.6428571428571429, 0.7857142857142857]
+require_fundamental = true
+min_epochs = 5
+max_attempts = 8
+max_val_activity_loss = 0.035
+max_val_activity_soft_count_mae = 0.4
+max_val_parameter_loss = 0.055
+max_val_f0_cents_mae = 140.0
+
+[[grades]]
+name = "g06_six_oscillators"
+rel_path = "g06_6_coupled_1024x512_1k"
+min_instrument_size = 6
+max_instrument_size = 6
+min_uncoupled_oscilators = 0
+max_uncoupled_oscilators = 0
+min_frequency_factor = 0.21428571428571427
+max_frequency_factor = 0.9285714285714286
+coupled_frequency_factors = [0.21428571428571427, 0.35714285714285715, 0.5, 0.6428571428571429, 0.7857142857142857, 0.9285714285714286]
+require_fundamental = true
+min_epochs = 5
+max_attempts = 8
+max_val_activity_loss = 0.035
+max_val_activity_soft_count_mae = 0.5
+max_val_parameter_loss = 0.065
+max_val_f0_cents_mae = 180.0
+
+[[grades]]
+name = "g07_variable_4to8_oscillators"
+rel_path = "g07_4to8_coupled_1024x512_1k"
+min_instrument_size = 4
+max_instrument_size = 8
+min_uncoupled_oscilators = 0
+max_uncoupled_oscilators = 0
+min_frequency_factor = 0.07142857142857142
+max_frequency_factor = 0.9285714285714286
+coupled_frequency_factors = [0.21428571428571427, 0.35714285714285715, 0.5, 0.6428571428571429, 0.7857142857142857, 0.9285714285714286]
+require_fundamental = true
+min_epochs = 5
+max_attempts = 8
+max_val_activity_soft_count_mae = 0.85
+max_val_parameter_loss = 0.08
+max_val_f0_cents_mae = 240.0

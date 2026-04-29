@@ -50,6 +50,7 @@ deep_trainer/
   train.py                training CLI
   predict.py              prediction CLI
   evaluate.py             holdout evaluation harness
+  adaptive_curriculum.py  metric-gated dataset generation and training supervisor
   audio_features.py       Python feature extraction and SLFT writing
   prepare_dataset.py      dataset WAV -> SLFT/metadata/preview preparation
   dataset_augmentor.py    audio-domain augmentation for synthetic datasets
@@ -171,6 +172,22 @@ flowchart TD
     H --> I["activity head<br/>B x max_oscillators"]
     H --> J["parameter head<br/>B x max_oscillators x 7"]
 ```
+
+For pitch-sensitive runs, enable coordinate channels. This appends frequency and time position maps inside the model before the first convolution:
+
+```text
+--coordinate-channels
+```
+
+This is important for f0 prediction because a pure convolutional encoder with global average pooling can become too frequency-translation-invariant. It may recognize spectral shape while losing where that shape sits on the frequency axis.
+
+For high-resolution runs with small GPU batches, use:
+
+```text
+--normalization group
+```
+
+BatchNorm remains the default for older experiments and checkpoints. The `v2_2048` adaptive curriculum opts into GroupNorm because `2048x512` tensors usually force small batches, and noisy BatchNorm running statistics can make validation pitch error bounce while training pitch error improves.
 
 The two-head output matters:
 
@@ -306,8 +323,9 @@ More explicitly:
 ```text
 total_loss =
   activity_loss_weight  * balanced_BCEWithLogits(activity_logits, active_flags)
++ activity_count_loss_weight * smooth_l1(sum(sigmoid(activity_logits)), active_count)
 + parameter_loss_weight * masked_smooth_l1(predicted_parameters, target_parameters)
-+ f0_loss_weight        * smooth_l1(predicted_log_f0, target_log_f0)
++ f0_loss_weight        * mean_absolute_log2_pitch_error
 + crowding_loss_weight  * pairwise_frequency_crowding_penalty
 + render_loss_weight    * multi_resolution_weighted_feature_loss
 + render_rms_loss_weight * smooth_l1(log(rendered_rms), log(source_rms))
@@ -328,11 +346,12 @@ The current surrogate render path uses:
 
 The f0 head predicts log-frequency normalized over the configured range, currently `40..2000 Hz`. The curriculum dataset generator now randomizes synthetic f0 over `55..440 Hz`, because training every example at one fixed base note makes f0 prediction meaningless.
 
-Training logs include `val_f0_cents`, the mean absolute f0 error in cents. This is much easier to interpret than normalized f0 loss: `100` cents is one semitone, `1200` cents is one octave.
+Training logs include `val_f0_cents`, the mean absolute f0 error in cents. This is much easier to interpret than normalized f0 loss: `100` cents is one semitone, `1200` cents is one octave. The raw `val_f0` metric is now the same error in octaves, so `0.083` is roughly one semitone.
 
 The f0 target is still partly ambiguous because the oscillator representation can trade base f0 against octave frequency factors. A prediction can be audio-plausible while reporting an octave-shifted base note. Use the analysis frontend's model f0 / audio pitch estimate / manual render-note switch to separate pitch estimation failure from timbre failure.
 
 Activity loss is dynamically class-balanced by default because most oscillator slots are inactive. Without that balancing, the model can reduce loss by predicting silence.
+For variable-count stages, `activity_count_loss_weight` adds a direct soft-count objective so the model cannot pass by turning on the maximum plausible number of oscillator slots.
 
 The crowding penalty compares active oscillator frequency factors in log2 space and penalizes pairs that land too close together. It is activity-weighted, but activity is detached inside the crowding term so crowding cannot reduce its own loss by turning oscillators off. It is meant to push the model away from the current "one bland low-frequency cluster" failure mode without adding high-frequency weighting yet.
 
@@ -460,11 +479,23 @@ python -m deep_trainer.analyze_parameter_space --dataset-root datasets/synth_102
 Windows batch helpers:
 
 ```text
+scripts/run_adaptive_curriculum_v1.bat
+scripts/run_adaptive_curriculum_v2_2048.bat
 scripts/build_curriculum_v1.bat
 scripts/train_curriculum_v1.bat
 scripts/build_complexity_curriculum_v1.bat
 scripts/train_complexity_curriculum_v1.bat
 ```
+
+The adaptive supervisor is the preferred next training experiment:
+
+```powershell
+scripts\run_adaptive_curriculum_v2_2048.bat --dry-run --skip-native-build --stop-grade g01_single_oscillator
+scripts\run_adaptive_curriculum_v2_2048.bat
+```
+
+It builds one grade at a time, trains for short attempts, reads `metrics.csv`, and promotes only when the grade clears its thresholds. The current high-resolution path uses `2048x512` tensors, `width = 192`, fixed seven/eight-oscillator bridge grades, and a stricter variable `4..8` grade. See [adaptive-curriculum.md](./adaptive-curriculum.md).
+The current adaptive curriculum is coupled-only; uncoupled oscillators are intentionally deferred.
 
 Training wrappers now make the objective explicit:
 

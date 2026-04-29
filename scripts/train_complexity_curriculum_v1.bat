@@ -43,16 +43,16 @@ if /i "%TARGET_STAGE%"=="c2" goto :done
 call :run_stage c3 deep_trainer\configs\complexity_curriculum_v1_c3.toml datasets\curricula\complexity_curriculum_v1\c3_1to8_clean_1024x512_1k runs\complexity_curriculum_v1_c3_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c3_w128_b8_e20
 if errorlevel 1 exit /b 1
 if /i "%TARGET_STAGE%"=="c3" goto :done
-call :run_stage c4 deep_trainer\configs\complexity_curriculum_v1_c4.toml datasets\curricula\complexity_curriculum_v1\c4_1to12_plus2_uncoupled_1024x512_1k runs\complexity_curriculum_v1_c4_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c4_w128_b8_e20
+call :run_stage c4 deep_trainer\configs\complexity_curriculum_v1_c4.toml datasets\curricula\complexity_curriculum_v1\c4_1to12_coupled_1024x512_1k runs\complexity_curriculum_v1_c4_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c4_w128_b8_e20
 if errorlevel 1 exit /b 1
 if /i "%TARGET_STAGE%"=="c4" goto :done
-call :run_stage c5 deep_trainer\configs\complexity_curriculum_v1_c5.toml datasets\curricula\complexity_curriculum_v1\c5_1to20_plus4_uncoupled_1024x512_1k runs\complexity_curriculum_v1_c5_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c5_w128_b8_e20
+call :run_stage c5 deep_trainer\configs\complexity_curriculum_v1_c5.toml datasets\curricula\complexity_curriculum_v1\c5_1to20_coupled_1024x512_1k runs\complexity_curriculum_v1_c5_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c5_w128_b8_e20
 if errorlevel 1 exit /b 1
 if /i "%TARGET_STAGE%"=="c5" goto :done
-call :run_stage c6 deep_trainer\configs\complexity_curriculum_v1_c6.toml datasets\curricula\complexity_curriculum_v1\c6_1to32_plus8_uncoupled_1024x512_1k runs\complexity_curriculum_v1_c6_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c6_w128_b8_e20
+call :run_stage c6 deep_trainer\configs\complexity_curriculum_v1_c6.toml datasets\curricula\complexity_curriculum_v1\c6_1to32_coupled_1024x512_1k runs\complexity_curriculum_v1_c6_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c6_w128_b8_e20
 if errorlevel 1 exit /b 1
 if /i "%TARGET_STAGE%"=="c6" goto :done
-call :run_stage c7 deep_trainer\configs\complexity_curriculum_v1_c7.toml datasets\curricula\complexity_curriculum_v1\c7_1to64_plus12_uncoupled_1024x512_1k runs\complexity_curriculum_v1_c7_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c7_w128_b8_e20
+call :run_stage c7 deep_trainer\configs\complexity_curriculum_v1_c7.toml datasets\curricula\complexity_curriculum_v1\c7_1to64_coupled_1024x512_1k runs\complexity_curriculum_v1_c7_w128_b8_e20 sounds\eval\complexity_curriculum_v1_c7_w128_b8_e20
 if errorlevel 1 exit /b 1
 
 :done

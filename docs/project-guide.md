@@ -22,6 +22,9 @@ Useful options:
 --note-frequency <hz>          fixed generated base note frequency
 --min-note-frequency <hz>      minimum generated base note frequency
 --max-note-frequency <hz>      maximum generated base note frequency
+--frequency-factor <0..1>      fixed normalized oscillator frequency factor
+--min-frequency-factor <0..1>  minimum normalized oscillator frequency factor
+--max-frequency-factor <0..1>  maximum normalized oscillator frequency factor
 ```
 
 Old fixed-count flags still work:
@@ -34,7 +37,7 @@ Old fixed-count flags still work:
 but they now mean "use the same count for every generated sample". For more realistic datasets, prefer per-sample ranges:
 
 ```bash
-./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 12 --min-note-frequency 55 --max-note-frequency 440
+./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 0 --min-note-frequency 55 --max-note-frequency 440
 ```
 
 Outputs include:
@@ -64,6 +67,9 @@ The current oscillator generator no longer samples completely free frequency fac
 ```
 
 This is intentionally simple while f0 prediction is being debugged. The curriculum build scripts also randomize the generated base note over `55..440 Hz`, so the model cannot learn a constant f0 shortcut.
+
+The adaptive curriculum's first grade fixes the normalized frequency factor at `0.21428571428571427`, which is the center of the `1.0*f0` anchor. Without this, a one-oscillator sound is still pitch-ambiguous because the same tone can be represented by different base-note and octave-multiplier pairs.
+Early adaptive grades can also pass an explicit coupled factor sequence, such as `0.21428571428571427,0.35714285714285715,0.5`, to build fixed harmonic ladders before reintroducing variable harmonic counts.
 
 ## Dataset Preparation
 
@@ -122,11 +128,13 @@ Stage ladder:
 c1: coupled 1..3,  uncoupled 0
 c2: coupled 1..5,  uncoupled 0
 c3: coupled 1..8,  uncoupled 0
-c4: coupled 1..12, uncoupled 0..2
-c5: coupled 1..20, uncoupled 0..4
-c6: coupled 1..32, uncoupled 0..8
-c7: coupled 1..64, uncoupled 0..12
+c4: coupled 1..12, uncoupled 0
+c5: coupled 1..20, uncoupled 0
+c6: coupled 1..32, uncoupled 0
+c7: coupled 1..64, uncoupled 0
 ```
+
+Uncoupled oscillators are parked for now. Add them back later as a separate branch once coupled harmonic recovery is reliable.
 
 Build it:
 
@@ -152,6 +160,19 @@ The complexity curriculum configs default to `width = 128`, `batch_size = 8`, an
 Dataset orchestration now lives in [../scripts/build_datasets.py](../scripts/build_datasets.py), with the batch files acting as thin wrappers.
 
 The build path supports process-level parallel dataset generation through the `DATASET_WORKERS` environment variable. It now merges raw audio/labels first and then prepares Python-side feature tensors and previews afterward.
+
+## Adaptive Curriculum
+
+The adaptive curriculum is the preferred next experiment. It builds one generated grade at a time, trains in short chunks, reads validation metrics, and only promotes to the next grade when the configured thresholds pass.
+
+```powershell
+scripts\run_adaptive_curriculum_v1.bat --dry-run --skip-native-build --stop-grade g01_single_oscillator
+scripts\run_adaptive_curriculum_v1.bat
+```
+
+The first grade is a deliberately simple one-oscillator dataset. Later grades increase coupled oscillator count and harmonic range while keeping uncoupled oscillators disabled. This is meant to avoid guessing how fast the model should progress.
+
+Details live in [adaptive-curriculum.md](./adaptive-curriculum.md).
 
 ## Feature Tensor
 
@@ -219,8 +240,8 @@ For oscillator recovery, rectangular inputs are often more useful than very larg
 
 1. Keep `.slft` as the stable model-facing artifact.
 2. Build dataset manifests so training and evaluation are explicit rather than directory-driven.
-3. Train the complexity curriculum progressively from simple to dense oscillator mixtures.
-4. Measure progress on real non-generated holdout audio, not just synthetic validation loss.
+3. Train with the adaptive curriculum from a one-oscillator inverse problem upward.
+4. Measure progress on real non-generated holdout audio after promoted grades, not just synthetic validation loss.
 5. Improve resynthesis quality with stronger audio-space losses and evaluation metrics.
 6. Widen synthetic realism carefully so the generator teaches useful robustness without breaking label meaning.
 7. Add uncertainty or mixture-style outputs if direct regression continues to average plausible solutions together.

@@ -67,7 +67,7 @@ Dataset builder:
 Variable oscillator counts per sample:
 
 ```bash
-./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 12
+./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 8 --max-instrument-size 64 --min-uncoupled-oscilators 0 --max-uncoupled-oscilators 0
 ```
 
 F0-randomized generation:
@@ -75,6 +75,9 @@ F0-randomized generation:
 ```bash
 ./build/dataset_builder/dataset_builder -n 1000 -t 5 --min-instrument-size 1 --max-instrument-size 8 --min-note-frequency 55 --max-note-frequency 440
 ```
+
+The dataset builder also supports `--frequency-factor`, `--min-frequency-factor`, and `--max-frequency-factor` for constraining the normalized oscillator frequency-factor parameter. The adaptive curriculum's first grade fixes this to `0.21428571428571427`, the center of the `1.0*f0` octave anchor, so one-oscillator training is not base-note/multiplier ambiguous.
+It also supports `--coupled-frequency-factors` for explicit early harmonic ladders, for example `0.21428571428571427,0.35714285714285715,0.5` for `1x,2x,4x`.
 
 `-s/--instrument-size` and `-c/--uncoupled-oscilators` still work as fixed-count shortcuts. Prefer the min/max flags when you want the generator to cover a broader instrument space.
 
@@ -138,6 +141,10 @@ It is currently a first surrogate, not a faithful differentiable clone of the C+
 
 The trainer also has an f0 head and a frequency-crowding penalty. The f0 head predicts log-normalized Hz and renderloss uses the predicted f0 when synthesizing the surrogate waveform. Track `val_f0_cents` for readable pitch error. Activity BCE is dynamically class-balanced by default because active oscillator slots are sparse. The crowding penalty discourages active oscillator slots from collapsing to the same frequency factor, but it detaches activity so the penalty cannot reward silence. RMS render loss is log-scaled so zero-energy predictions are punished more strongly.
 
+The adaptive curriculum enables `coordinate_channels = true`, which appends frequency/time coordinate maps inside the model. Keep this for pitch-sensitive training; otherwise the ConvNet's global average pooling can make f0 prediction unnecessarily hard.
+The `v2_2048` adaptive curriculum also uses `normalization = "group"` because high-resolution training runs with small batches; keep this unless you are intentionally comparing against BatchNorm behavior.
+It also uses `activity_count_loss_weight` so variable-count stages learn how many coupled oscillators should be active instead of simply turning on the maximum plausible prefix.
+
 Dataset augmentor:
 
 ```bash
@@ -167,11 +174,22 @@ Evaluation runs now also write `ab_listen/` WAV pairs and mel spectrogram PNGs f
 Curriculum scripts:
 
 ```bat
+scripts\run_adaptive_curriculum_v1.bat
+scripts\run_adaptive_curriculum_v2_2048.bat
 scripts\build_curriculum_v1.bat
 scripts\train_curriculum_v1.bat
 scripts\build_complexity_curriculum_v1.bat
 scripts\train_complexity_curriculum_v1.bat
 ```
+
+Adaptive curriculum:
+
+```bat
+scripts\run_adaptive_curriculum_v2_2048.bat --dry-run --skip-native-build --stop-grade g01_single_oscillator
+scripts\run_adaptive_curriculum_v2_2048.bat
+```
+
+This supervisor builds one synthetic grade at a time, trains in short chunks, reads the grade run's `metrics.csv`, and only promotes when thresholds such as `val_loss`, `val_parameter_loss`, and `val_f0_cents_mae` pass. The current recommended config is `deep_trainer/configs/adaptive_curriculum_v2_2048.toml`: `2048x512` tensors, `width = 192`, `normalization = "group"`, fixed seven/eight-oscillator bridge grades, and a stricter variable `4..8` grade. State lives in `runs/adaptive_curriculum_v2_2048/supervisor_state.json`.
 
 Complexity curriculum:
 
@@ -179,13 +197,14 @@ Complexity curriculum:
 c1: coupled 1..3,  uncoupled 0
 c2: coupled 1..5,  uncoupled 0
 c3: coupled 1..8,  uncoupled 0
-c4: coupled 1..12, uncoupled 0..2
-c5: coupled 1..20, uncoupled 0..4
-c6: coupled 1..32, uncoupled 0..8
-c7: coupled 1..64, uncoupled 0..12
+c4: coupled 1..12, uncoupled 0
+c5: coupled 1..20, uncoupled 0
+c6: coupled 1..32, uncoupled 0
+c7: coupled 1..64, uncoupled 0
 ```
 
 These stages are meant to be trained progressively, initializing each stage from the previous stage's `best.pt`.
+For current work, keep generated training data coupled-only. Uncoupled oscillators should return later as a separate curriculum branch after coupled harmonic recovery is reliable.
 
 Training wrappers support explicit objective modes:
 

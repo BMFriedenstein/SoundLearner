@@ -29,7 +29,7 @@ from .audio_preview import write_ab_mel_preview, write_mel_preview
 from .dataset import TARGET_CHANNELS, discover_examples, read_oscillator_csv
 from .differentiable_audio import denormalize_log_frequency
 from .evaluate import path_for_record
-from .model import ModelConfig, SoundLearnerNet
+from .model import SoundLearnerNet, model_config_from_mapping
 from .slft import read_slft
 
 
@@ -37,6 +37,25 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_ROOT = REPO_ROOT / "analysis_frontend"
 RUN_ROOT = APP_ROOT / "runs"
 MAX_UPLOAD_BYTES = 64 * 1024 * 1024
+NOTE_OFFSETS = {
+    "c": -9,
+    "cs": -8,
+    "db": -8,
+    "d": -7,
+    "ds": -6,
+    "eb": -6,
+    "e": -5,
+    "f": -4,
+    "fs": -3,
+    "gb": -3,
+    "g": -2,
+    "gs": -1,
+    "ab": -1,
+    "a": 0,
+    "as": 1,
+    "bb": 1,
+    "b": 2,
+}
 
 
 def to_wsl_path(path: Path) -> str:
@@ -51,13 +70,85 @@ def safe_slug(value: str) -> str:
     return slug or "sample"
 
 
+def infer_named_note_frequency(name: str) -> float | None:
+    match = re.match(r"^o_([a-g](?:s|b)?)(0?\d)", Path(name).stem.lower())
+    if not match:
+      return None
+    note, octave_text = match.groups()
+    octave = 0 if octave_text.startswith("0") else int(octave_text)
+    semitones_from_a4 = (octave - 4) * 12 + NOTE_OFFSETS[note]
+    return 440.0 * (2.0 ** (semitones_from_a4 / 12.0))
+
+
 def latest_checkpoint() -> Path | None:
-    candidates = sorted((REPO_ROOT / "runs").glob("**/best.pt"), key=lambda path: path.stat().st_mtime, reverse=True)
+    best_candidates = sorted((REPO_ROOT / "runs").glob("**/best.pt"), key=lambda path: path.stat().st_mtime, reverse=True)
+    if best_candidates:
+      return best_candidates[0]
+    candidates = sorted((REPO_ROOT / "runs").glob("**/*.pt"), key=lambda path: path.stat().st_mtime, reverse=True)
     return candidates[0] if candidates else None
 
 
 def discover_checkpoints() -> list[Path]:
-    return sorted((REPO_ROOT / "runs").glob("**/best.pt"), key=lambda path: str(path).lower())
+    candidates = {
+        path
+        for pattern in ("**/best.pt", "**/last.pt")
+        for path in (REPO_ROOT / "runs").glob(pattern)
+    }
+    return sorted(candidates, key=lambda path: (-path.stat().st_mtime, str(path).lower()))
+
+
+def optional_int(value: Any) -> int | None:
+    if value is None:
+      return None
+    text = str(value).strip()
+    if not text or text.lower() in {"none", "null"}:
+      return None
+    try:
+      return int(float(text))
+    except ValueError:
+      return None
+
+
+def infer_shape_from_path(path: Path) -> tuple[int | None, int | None]:
+    match = re.search(r"(\d+)x(\d+)", str(path))
+    if not match:
+      return None, None
+    return int(match.group(1)), int(match.group(2))
+
+
+def checkpoint_summary(path: Path, default: Path | None) -> dict[str, Any]:
+    frequency_bins, time_frames = infer_shape_from_path(path)
+    width: int | None = None
+    max_oscillators: int | None = None
+    epoch: int | None = None
+    try:
+      checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+      model_config = model_config_from_mapping(checkpoint.get("model_config"))
+      args = checkpoint.get("args") if isinstance(checkpoint.get("args"), dict) else {}
+      frequency_bins = optional_int(args.get("freq_bins")) or optional_int(args.get("resolution")) or frequency_bins
+      time_frames = optional_int(args.get("time_frames")) or optional_int(args.get("resolution")) or time_frames
+      width = model_config.width
+      max_oscillators = model_config.max_oscillators
+      epoch = optional_int(checkpoint.get("epoch"))
+    except Exception as exc:  # noqa: BLE001 - source discovery should stay best-effort for the local UI.
+      print(f"Could not inspect checkpoint {path}: {exc}")
+    frequency_bins = frequency_bins or 1024
+    time_frames = time_frames or 512
+    details = [f"{frequency_bins}x{time_frames}"]
+    if epoch is not None:
+      details.append(f"epoch {epoch}")
+    if width is not None:
+      details.append(f"w{width}")
+    if max_oscillators is not None:
+      details.append(f"{max_oscillators} slots")
+    return {
+        "path": rel(path),
+        "label": f"{rel(path)} ({', '.join(details)})",
+        "default": default is not None and path == default,
+        "freq_bins": frequency_bins,
+        "time_frames": time_frames,
+        "mtime": path.stat().st_mtime,
+    }
 
 
 def discover_dataset_roots() -> list[Path]:
@@ -91,7 +182,7 @@ def resolve_user_path(value: str) -> Path:
 def load_model(checkpoint_path: Path, device_name: str) -> tuple[SoundLearnerNet, torch.device]:
     device = torch.device("cuda" if device_name == "cuda" and torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model = SoundLearnerNet(ModelConfig(**checkpoint["model_config"])).to(device)
+    model = SoundLearnerNet(model_config_from_mapping(checkpoint.get("model_config"))).to(device)
     incompatible = model.load_state_dict(checkpoint["model_state"], strict=False)
     if incompatible.missing_keys:
       print(f"Checkpoint is missing model keys: {', '.join(incompatible.missing_keys)}")
@@ -182,6 +273,38 @@ def render_prediction(player_path: Path, instrument_path: Path, note_frequency: 
     if not rendered.exists():
       raise FileNotFoundError(f"Player did not produce {rendered}")
     return rendered
+
+
+def dominant_oscillator_factor(oscillators: list[dict[str, float | int]]) -> float | None:
+    if not oscillators:
+      return None
+    best_score = 0.0
+    best_factor: float | None = None
+    for oscillator in oscillators:
+      score = float(oscillator["activity"]) * float(oscillator["amplitude"])
+      if score > best_score:
+        best_score = score
+        best_factor = float(oscillator["frequency_factor"])
+    return best_factor if best_factor is not None and best_factor > 0.0 else None
+
+
+def render_tuned_prediction(
+    player_path: Path,
+    instrument_path: Path,
+    note_frequency: float,
+    dominant_factor: float | None,
+    velocity: int,
+    length: int,
+    enabled: bool,
+) -> tuple[Path, float, float | None, float]:
+    correction_ratio = 1.0
+    if enabled and dominant_factor is not None and dominant_factor > 0.0:
+      correction_ratio = float(np.clip(1.0 / dominant_factor, 0.03125, 32.0))
+      note_frequency = note_frequency * correction_ratio
+
+    rendered = render_prediction(player_path, instrument_path, note_frequency, velocity, length)
+    rendered_pitch = estimate_fundamental_frequency_from_wav(rendered)
+    return rendered, note_frequency, rendered_pitch, correction_ratio
 
 
 def tensor_metrics(source_feature: Path, rendered_feature: Path) -> dict[str, float]:
@@ -277,12 +400,15 @@ def config_payload() -> dict[str, Any]:
     checkpoints = discover_checkpoints()
     default_checkpoint = latest_checkpoint()
     datasets = discover_dataset_roots()
+    checkpoint_items = [checkpoint_summary(path, default_checkpoint) for path in checkpoints]
+    default_checkpoint_item = next((item for item in checkpoint_items if item.get("default")), None)
     return {
-        "checkpoints": [
-            {"path": rel(path), "label": rel(path), "default": default_checkpoint is not None and path == default_checkpoint}
-            for path in checkpoints
-        ],
+        "checkpoints": checkpoint_items,
         "datasets": [{"path": rel(path), "label": rel(path)} for path in datasets],
+        "defaults": {
+            "freq_bins": default_checkpoint_item["freq_bins"] if default_checkpoint_item else 1024,
+            "time_frames": default_checkpoint_item["time_frames"] if default_checkpoint_item else 512,
+        },
     }
 
 
@@ -307,6 +433,8 @@ def render_index_html() -> str:
         .replace("__DATASET_OPTIONS__", option_html(config["datasets"], include_empty=True))
         .replace("__DEFAULT_CHECKPOINT__", escape_attr(str(default_checkpoint)))
         .replace("__DEFAULT_DATASET__", escape_attr(str(default_dataset)))
+        .replace("__DEFAULT_FREQ_BINS__", escape_attr(str(config["defaults"]["freq_bins"])))
+        .replace("__DEFAULT_TIME_FRAMES__", escape_attr(str(config["defaults"]["time_frames"])))
         .replace("__CONFIG_COUNTS__", f"{len(config['checkpoints'])} checkpoint(s), {len(config['datasets'])} reference dataset(s)")
         .replace("__CONFIG_JSON__", json.dumps(config))
     )
@@ -327,14 +455,16 @@ def analyze_sample(fields: dict[str, str], files: dict[str, tuple[str, bytes]]) 
     if dataset_root is not None and not dataset_root.exists():
       dataset_root = None
 
-    freq_bins = int(fields.get("freq_bins", "512"))
-    time_frames = int(fields.get("time_frames", "256"))
+    checkpoint_shape = checkpoint_summary(checkpoint, None)
+    freq_bins = int(fields.get("freq_bins") or checkpoint_shape["freq_bins"])
+    time_frames = int(fields.get("time_frames") or checkpoint_shape["time_frames"])
     crop_seconds = float(fields.get("crop_seconds", "5.0"))
     activity_threshold = float(fields.get("activity_threshold", "0.5"))
     velocity = int(fields.get("velocity", "2"))
     length = int(float(fields.get("length", "5")))
     device_name = fields.get("device", "cpu")
     render_note_source = fields.get("render_note_source", "estimated")
+    playback_tuning = fields.get("playback_tuning", "matched")
     manual_note = float(fields.get("manual_note_frequency", "440") or "440")
     player = resolve_user_path(fields.get("player", "build/player/player"))
 
@@ -359,17 +489,29 @@ def analyze_sample(fields: dict[str, str], files: dict[str, tuple[str, bytes]]) 
     write_feature_preview_bmp(source_preview, source_tensor, width=900, height=320)
     write_mel_preview(source_wav, source_mel)
     estimated_note = estimate_fundamental_frequency_from_wav(source_wav)
+    named_note = infer_named_note_frequency(original_name)
 
     model, device = load_model(checkpoint, device_name)
     row_count, predicted_note, mean_activity, oscillators = predict_instrument(model, device, source_feature, prediction_path, activity_threshold, False)
     if render_note_source == "predicted":
-      note_frequency = predicted_note if predicted_note is not None else estimated_note if estimated_note is not None else manual_note
+      selected_note_frequency = predicted_note if predicted_note is not None else named_note if named_note is not None else estimated_note if estimated_note is not None else manual_note
+    elif render_note_source == "filename":
+      selected_note_frequency = named_note if named_note is not None else estimated_note if estimated_note is not None else predicted_note if predicted_note is not None else manual_note
     elif render_note_source == "manual":
-      note_frequency = manual_note
+      selected_note_frequency = manual_note
     else:
-      note_frequency = estimated_note if estimated_note is not None else predicted_note if predicted_note is not None else manual_note
+      selected_note_frequency = estimated_note if estimated_note is not None else named_note if named_note is not None else predicted_note if predicted_note is not None else manual_note
 
-    rendered_wav_raw = render_prediction(player, prediction_path, note_frequency, velocity, length)
+    dominant_factor = dominant_oscillator_factor(oscillators)
+    rendered_wav_raw, note_frequency, rendered_note, pitch_correction_ratio = render_tuned_prediction(
+        player,
+        prediction_path,
+        selected_note_frequency,
+        dominant_factor,
+        velocity,
+        length,
+        playback_tuning == "matched",
+    )
     rendered_wav = run_dir / "prediction" / "prediction.wav"
     shutil.copyfile(rendered_wav_raw, rendered_wav)
     rendered_tensor = extract_feature_tensor_from_wav(rendered_wav, spec)
@@ -386,9 +528,16 @@ def analyze_sample(fields: dict[str, str], files: dict[str, tuple[str, bytes]]) 
         "dataset_root": rel(dataset_root) if dataset_root is not None else None,
         "predicted_note_frequency": predicted_note,
         "estimated_note_frequency": estimated_note,
+        "named_note_frequency": named_note,
+        "selected_note_frequency": selected_note_frequency,
         "render_note_frequency": note_frequency,
         "render_note_source": render_note_source,
-        "f0_error_cents": cents_error(predicted_note, estimated_note),
+        "playback_tuning": playback_tuning,
+        "rendered_note_frequency": rendered_note,
+        "dominant_frequency_factor": dominant_factor,
+        "pitch_correction_ratio": pitch_correction_ratio,
+        "f0_error_cents": cents_error(predicted_note, named_note if named_note is not None else estimated_note),
+        "rendered_f0_error_cents": cents_error(rendered_note, selected_note_frequency),
         "predicted_rows": row_count,
         "mean_active_probability": mean_activity,
         "oscillators": oscillators,
@@ -538,7 +687,7 @@ HTML = r"""<!doctype html>
     .drop.active { border-color: var(--green); background: #20291f; }
     .drop strong { display: block; font-size: 18px; color: var(--ink); margin-bottom: 8px; }
     .picker { display: grid; grid-template-columns: 42px minmax(0, 1fr) 42px; gap: 6px; align-items: end; }
-    .picker input { font-size: 12px; }
+    .picker select { font-size: 12px; }
     .control-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .slider-box {
       background: var(--panel-2);
@@ -552,7 +701,7 @@ HTML = r"""<!doctype html>
     .segments button { flex: 1; min-height: 34px; padding: 7px 10px; background: transparent; color: var(--muted); border: 0; }
     .segments button.active { background: var(--green); color: #0e120d; }
     .status { color: var(--muted); min-height: 24px; }
-    .metric-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+    .metric-row { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; }
     .metric {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -560,7 +709,7 @@ HTML = r"""<!doctype html>
       min-height: 76px;
       background: #1d1e1a;
     }
-    .metric b { display: block; font-size: 18px; margin-top: 8px; color: var(--gold); }
+    .metric b { display: block; font-size: 16px; line-height: 1.2; margin-top: 8px; color: var(--gold); overflow-wrap: anywhere; }
     audio { width: 100%; filter: sepia(0.08); }
     img { max-width: 100%; display: block; border-radius: 6px; border: 1px solid var(--line); background: #111; }
     canvas { width: 100%; height: 460px; border: 1px solid var(--line); border-radius: 8px; background: #11120f; }
@@ -620,17 +769,15 @@ HTML = r"""<!doctype html>
         <label>Checkpoint</label>
         <div class="picker">
           <button class="secondary" id="checkpointPrev" type="button">Prev</button>
-          <input id="checkpoint" list="checkpointList" value="__DEFAULT_CHECKPOINT__" spellcheck="false">
+          <select id="checkpoint">__CHECKPOINT_OPTIONS__</select>
           <button class="secondary" id="checkpointNext" type="button">Next</button>
         </div>
-        <datalist id="checkpointList">__CHECKPOINT_OPTIONS__</datalist>
         <label style="margin-top:10px">PCA Reference</label>
         <div class="picker">
           <button class="secondary" id="datasetPrev" type="button">Prev</button>
-          <input id="dataset" list="datasetList" value="__DEFAULT_DATASET__" spellcheck="false">
+          <select id="dataset">__DATASET_OPTIONS__</select>
           <button class="secondary" id="datasetNext" type="button">Next</button>
         </div>
-        <datalist id="datasetList"><option value="">None</option>__DATASET_OPTIONS__</datalist>
       </div>
     </div>
 
@@ -638,8 +785,8 @@ HTML = r"""<!doctype html>
       <div class="module">
         <h3>Analysis Controls</h3>
         <div class="control-grid">
-          <div class="slider-box"><div class="slider-head"><span>Frequency Bins</span><output id="freqBinsOut">512</output></div><input id="freqBins" type="range" min="64" max="2048" step="64" value="512"></div>
-          <div class="slider-box"><div class="slider-head"><span>Time Frames</span><output id="timeFramesOut">256</output></div><input id="timeFrames" type="range" min="32" max="1024" step="32" value="256"></div>
+          <div class="slider-box"><div class="slider-head"><span>Frequency Bins</span><output id="freqBinsOut">__DEFAULT_FREQ_BINS__</output></div><input id="freqBins" type="range" min="64" max="2048" step="64" value="__DEFAULT_FREQ_BINS__"></div>
+          <div class="slider-box"><div class="slider-head"><span>Time Frames</span><output id="timeFramesOut">__DEFAULT_TIME_FRAMES__</output></div><input id="timeFrames" type="range" min="32" max="1024" step="32" value="__DEFAULT_TIME_FRAMES__"></div>
           <div class="slider-box"><div class="slider-head"><span>Crop Seconds</span><output id="cropSecondsOut">5.0</output></div><input id="cropSeconds" type="range" min="0.5" max="8" step="0.5" value="5"></div>
           <div class="slider-box"><div class="slider-head"><span>Activity Threshold</span><output id="activityThresholdOut">0.25</output></div><input id="activityThreshold" type="range" min="0" max="1" step="0.01" value="0.25"></div>
           <div class="slider-box"><div class="slider-head"><span>Render Velocity</span><output id="velocityOut">2</output></div><input id="velocity" type="range" min="1" max="100" step="1" value="2"></div>
@@ -651,10 +798,17 @@ HTML = r"""<!doctype html>
         <label>Render Note</label>
         <div class="segments" data-target="renderNoteSource">
           <button type="button" data-value="estimated" class="active">audio pitch</button>
+          <button type="button" data-value="filename">file name</button>
           <button type="button" data-value="predicted">model f0</button>
           <button type="button" data-value="manual">manual</button>
         </div>
         <input id="renderNoteSource" type="hidden" value="estimated">
+        <label style="margin-top:12px">Playback Tuning</label>
+        <div class="segments" data-target="playbackTuning">
+          <button type="button" data-value="matched" class="active">pitch matched</button>
+          <button type="button" data-value="raw">raw model</button>
+        </div>
+        <input id="playbackTuning" type="hidden" value="matched">
         <label style="margin-top:12px">Device</label>
         <div class="segments" data-target="device">
           <button type="button" data-value="cpu" class="active">cpu</button>
@@ -673,11 +827,13 @@ HTML = r"""<!doctype html>
     <h2>Result</h2>
     <div class="metric-row">
       <div class="metric">Model f0<b id="modelNote">-</b></div>
-      <div class="metric">Audio pitch estimate<b id="estimatedNote">-</b></div>
-      <div class="metric">Render f0<b id="renderNote">-</b></div>
+      <div class="metric">Source pitch<b id="estimatedNote">-</b></div>
+      <div class="metric">Player note<b id="renderNote">-</b></div>
+      <div class="metric">Rendered pitch<b id="renderedPitch">-</b></div>
       <div class="metric">Oscillators<b id="rows">-</b></div>
       <div class="metric">Feature MAE<b id="mae">-</b></div>
-      <div class="metric">F0 Error<b id="f0Error">-</b></div>
+      <div class="metric">Model f0 error<b id="f0Error">-</b></div>
+      <div class="metric">Playback error<b id="renderedF0Error">-</b></div>
     </div>
   </section>
 
@@ -725,6 +881,7 @@ let appConfig = __CONFIG_JSON__;
 
 function setStatus(text) { $('status').textContent = text; }
 function artifact(url) { return `${url}&t=${Date.now()}`; }
+function formatHz(value) { return value ? `${value.toFixed(2)} Hz` : '-'; }
 function setOutput(id, value) { const node = $(id + 'Out'); if (node) node.textContent = value; }
 function syncSliders() {
   for (const id of ['freqBins', 'timeFrames', 'cropSeconds', 'activityThreshold', 'velocity', 'manualNoteFrequency']) {
@@ -753,16 +910,46 @@ function bindPicker(inputId, prevId, nextId, items) {
   const input = $(inputId);
   const previous = $(prevId);
   const next = $(nextId);
-  const values = items.map(item => item.path);
   const move = direction => {
+    const values = Array.from(input.options).map(option => option.value);
     if (!values.length) return;
     let index = values.indexOf(input.value);
     if (index < 0) index = direction > 0 ? -1 : 0;
     index = (index + direction + values.length) % values.length;
     input.value = values[index];
+    input.dispatchEvent(new Event('change'));
   };
   previous.addEventListener('click', () => move(-1));
   next.addEventListener('click', () => move(1));
+}
+function setSelectOptions(selectId, items, includeEmpty = false) {
+  const select = $(selectId);
+  const previousValue = select.value;
+  select.innerHTML = '';
+  if (includeEmpty) select.appendChild(new Option('None', ''));
+  for (const item of items) {
+    select.appendChild(new Option(item.label || item.path, item.path));
+  }
+  const defaultItem = items.find(item => item.default) || items[0];
+  if (previousValue && Array.from(select.options).some(option => option.value === previousValue)) {
+    select.value = previousValue;
+  } else if (defaultItem) {
+    select.value = defaultItem.path;
+  }
+}
+function setRangeValue(id, value) {
+  const input = $(id);
+  if (!input || value === undefined || value === null) return;
+  const min = Number(input.min);
+  const max = Number(input.max);
+  input.value = String(Math.max(min, Math.min(max, Number(value))));
+  input.dispatchEvent(new Event('input'));
+}
+function applyCheckpointShape() {
+  const checkpoint = appConfig.checkpoints.find(item => item.path === $('checkpoint').value);
+  if (!checkpoint) return;
+  setRangeValue('freqBins', checkpoint.freq_bins);
+  setRangeValue('timeFrames', checkpoint.time_frames);
 }
 async function loadConfig() {
   try {
@@ -771,9 +958,12 @@ async function loadConfig() {
   } catch (error) {
     setStatus(`Using embedded config. ${error.message}`);
   }
+  setSelectOptions('checkpoint', appConfig.checkpoints);
+  setSelectOptions('dataset', appConfig.datasets, true);
   const checkpointDefault = appConfig.checkpoints.find(item => item.default) || appConfig.checkpoints[0];
-  if (checkpointDefault && !$('checkpoint').value) $('checkpoint').value = checkpointDefault.path;
+  if (checkpointDefault) $('checkpoint').value = checkpointDefault.path;
   if (appConfig.datasets.length && !$('dataset').value) $('dataset').value = appConfig.datasets[0].path;
+  applyCheckpointShape();
   bindPicker('checkpoint', 'checkpointPrev', 'checkpointNext', appConfig.checkpoints);
   bindPicker('dataset', 'datasetPrev', 'datasetNext', [{ path: '' }, ...appConfig.datasets]);
   setStatus(`Ready. Found ${appConfig.checkpoints.length} checkpoint(s), ${appConfig.datasets.length} reference dataset(s).`);
@@ -875,6 +1065,7 @@ async function analyze() {
   form.append('length', $('cropSeconds').value);
   form.append('device', $('device').value);
   form.append('render_note_source', $('renderNoteSource').value);
+  form.append('playback_tuning', $('playbackTuning').value);
   form.append('manual_note_frequency', $('manualNoteFrequency').value);
   form.append('player', 'build/player/player');
   $('analyze').disabled = true;
@@ -889,12 +1080,14 @@ async function analyze() {
     $('melSection').classList.remove('hidden');
     $('featureSection').classList.remove('hidden');
     $('pcaSection').classList.remove('hidden');
-    $('modelNote').textContent = result.predicted_note_frequency ? `${result.predicted_note_frequency.toFixed(2)} Hz` : '-';
-    $('estimatedNote').textContent = result.estimated_note_frequency ? `${result.estimated_note_frequency.toFixed(2)} Hz` : '-';
-    $('renderNote').textContent = `${result.render_note_frequency.toFixed(2)} Hz`;
+    $('modelNote').textContent = formatHz(result.predicted_note_frequency);
+    $('estimatedNote').textContent = result.named_note_frequency ? `file ${result.named_note_frequency.toFixed(1)} / audio ${result.estimated_note_frequency ? result.estimated_note_frequency.toFixed(1) : '-'}` : formatHz(result.estimated_note_frequency);
+    $('renderNote').textContent = formatHz(result.render_note_frequency);
+    $('renderedPitch').textContent = formatHz(result.rendered_note_frequency);
     $('rows').textContent = result.predicted_rows;
     $('mae').textContent = result.metrics.feature_mae.toFixed(4);
     $('f0Error').textContent = result.f0_error_cents === null ? '-' : `${result.f0_error_cents.toFixed(0)} cents`;
+    $('renderedF0Error').textContent = result.rendered_f0_error_cents === null ? '-' : `${result.rendered_f0_error_cents.toFixed(0)} cents`;
     $('sourceAudio').src = artifact(result.artifacts.source_wav);
     $('predAudio').src = artifact(result.artifacts.predicted_wav);
     $('abMel').src = artifact(result.artifacts.ab_mel);
@@ -904,7 +1097,8 @@ async function analyze() {
     $('predFeature').src = artifact(result.artifacts.predicted_feature);
     renderOscillators(result.oscillators);
     drawPca(result.pca);
-    setStatus(`Done. Run ${result.run_id}. Rendered with ${result.render_note_source} f0.`);
+    const correction = result.pitch_correction_ratio ? `, correction ${result.pitch_correction_ratio.toFixed(3)}x` : '';
+    setStatus(`Done. Run ${result.run_id}. ${result.playback_tuning} playback${correction}.`);
   } catch (error) {
     setStatus(error.message);
   } finally {
@@ -917,6 +1111,7 @@ $('wav').addEventListener('change', event => {
   $('fileLabel').textContent = selectedFile ? selectedFile.name : 'or choose one below';
 });
 $('analyze').addEventListener('click', analyze);
+$('checkpoint').addEventListener('change', applyCheckpointShape);
 for (const eventName of ['dragenter', 'dragover']) {
   $('drop').addEventListener(eventName, event => { event.preventDefault(); $('drop').classList.add('active'); });
 }

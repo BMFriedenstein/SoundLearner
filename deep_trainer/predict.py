@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 
 from .differentiable_audio import denormalize_log_frequency
-from .model import ModelConfig, SoundLearnerNet
+from .model import SoundLearnerNet, model_config_from_mapping
 from .slft import read_slft
 
 
@@ -24,7 +24,7 @@ def main() -> None:
     args = parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
-    config = ModelConfig(**checkpoint["model_config"])
+    config = model_config_from_mapping(checkpoint.get("model_config"))
     model = SoundLearnerNet(config).to(device)
     incompatible = model.load_state_dict(checkpoint["model_state"], strict=False)
     if incompatible.missing_keys:

@@ -18,7 +18,7 @@ import torch
 from .audio_features import FeatureSpec, extract_feature_tensor_from_wav, write_feature_preview_bmp, write_feature_tensor
 from .audio_preview import write_ab_mel_preview, write_mel_preview
 from .differentiable_audio import denormalize_log_frequency
-from .model import ModelConfig, SoundLearnerNet
+from .model import SoundLearnerNet, model_config_from_mapping
 from .slft import read_slft
 
 
@@ -172,7 +172,7 @@ def load_model(checkpoint_path: Path, requested_device: str) -> tuple[SoundLearn
     else:
       device = torch.device(requested_device)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model = SoundLearnerNet(ModelConfig(**checkpoint["model_config"])).to(device)
+    model = SoundLearnerNet(model_config_from_mapping(checkpoint.get("model_config"))).to(device)
     incompatible = model.load_state_dict(checkpoint["model_state"], strict=False)
     if incompatible.missing_keys:
       print(f"Checkpoint is missing new model keys; initialized randomly: {', '.join(incompatible.missing_keys)}")

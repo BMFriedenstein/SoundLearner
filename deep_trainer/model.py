@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
+from typing import Any
 
 import torch
 from torch import nn
@@ -15,6 +16,17 @@ class ModelConfig:
     max_oscillators: int = 64
     width: int = 64
     dropout: float = 0.1
+    coordinate_channels: bool = False
+    normalization: str = "batch"
+
+
+def model_config_from_mapping(data: dict[str, Any] | None) -> ModelConfig:
+    """Build a ModelConfig while ignoring stale/future checkpoint keys."""
+    if data is None:
+      raise ValueError("Checkpoint is missing model_config")
+    valid_keys = {field.name for field in fields(ModelConfig)}
+    filtered = {key: value for key, value in data.items() if key in valid_keys}
+    return ModelConfig(**filtered)
 
 
 class ConvNeXtBlock(nn.Module):
@@ -40,12 +52,27 @@ class ConvNeXtBlock(nn.Module):
       return residual + x
 
 
+def _group_count(channels: int) -> int:
+    for groups in (32, 16, 8, 4, 2):
+      if channels % groups == 0:
+        return groups
+    return 1
+
+
+def spatial_norm(channels: int, normalization: str) -> nn.Module:
+    if normalization == "batch":
+      return nn.BatchNorm2d(channels)
+    if normalization == "group":
+      return nn.GroupNorm(_group_count(channels), channels)
+    raise ValueError(f"Unsupported normalization: {normalization}")
+
+
 class DownsampleStage(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, blocks: int) -> None:
+    def __init__(self, in_channels: int, out_channels: int, blocks: int, normalization: str) -> None:
       super().__init__()
       layers: list[nn.Module] = [
           nn.Conv2d(in_channels, out_channels, kernel_size=2, stride=2),
-          nn.BatchNorm2d(out_channels),
+          spatial_norm(out_channels, normalization),
       ]
       layers.extend(ConvNeXtBlock(out_channels) for _ in range(blocks))
       self.layers = nn.Sequential(*layers)
@@ -61,15 +88,16 @@ class SoundLearnerNet(nn.Module):
       super().__init__()
       self.config = config
       width = config.width
+      stem_input_channels = config.input_channels + (2 if config.coordinate_channels else 0)
       self.stem = nn.Sequential(
-          nn.Conv2d(config.input_channels, width, kernel_size=4, stride=4),
-          nn.BatchNorm2d(width),
+          nn.Conv2d(stem_input_channels, width, kernel_size=4, stride=4),
+          spatial_norm(width, config.normalization),
           ConvNeXtBlock(width),
       )
       self.encoder = nn.Sequential(
-          DownsampleStage(width, width * 2, blocks=2),
-          DownsampleStage(width * 2, width * 4, blocks=2),
-          DownsampleStage(width * 4, width * 8, blocks=3),
+          DownsampleStage(width, width * 2, blocks=2, normalization=config.normalization),
+          DownsampleStage(width * 2, width * 4, blocks=2, normalization=config.normalization),
+          DownsampleStage(width * 4, width * 8, blocks=3, normalization=config.normalization),
       )
       self.pool = nn.AdaptiveAvgPool2d(1)
       self.head = nn.Sequential(
@@ -84,7 +112,18 @@ class SoundLearnerNet(nn.Module):
       self.parameter_head = nn.Linear(width * 8, config.max_oscillators * OSCILLATOR_PARAMETER_COUNT)
       self.f0_head = nn.Linear(width * 8, 1)
 
+    def append_coordinate_channels(self, features: torch.Tensor) -> torch.Tensor:
+      if not self.config.coordinate_channels:
+        return features
+      batch_size, _, frequency_bins, time_frames = features.shape
+      frequency = torch.linspace(-1.0, 1.0, frequency_bins, device=features.device, dtype=features.dtype)
+      time = torch.linspace(-1.0, 1.0, time_frames, device=features.device, dtype=features.dtype)
+      frequency_channel = frequency.view(1, 1, frequency_bins, 1).expand(batch_size, 1, frequency_bins, time_frames)
+      time_channel = time.view(1, 1, 1, time_frames).expand(batch_size, 1, frequency_bins, time_frames)
+      return torch.cat((features, frequency_channel, time_channel), dim=1)
+
     def forward(self, features: torch.Tensor) -> dict[str, torch.Tensor]:
+      features = self.append_coordinate_channels(features)
       x = self.stem(features)
       x = self.encoder(x)
       x = self.pool(x)
@@ -100,5 +139,21 @@ class SoundLearnerNet(nn.Module):
       }
 
 
-def build_model(input_channels: int, max_oscillators: int, width: int = 64, dropout: float = 0.1) -> SoundLearnerNet:
-    return SoundLearnerNet(ModelConfig(input_channels=input_channels, max_oscillators=max_oscillators, width=width, dropout=dropout))
+def build_model(
+    input_channels: int,
+    max_oscillators: int,
+    width: int = 64,
+    dropout: float = 0.1,
+    coordinate_channels: bool = False,
+    normalization: str = "batch",
+) -> SoundLearnerNet:
+    return SoundLearnerNet(
+        ModelConfig(
+            input_channels=input_channels,
+            max_oscillators=max_oscillators,
+            width=width,
+            dropout=dropout,
+            coordinate_channels=coordinate_channels,
+            normalization=normalization,
+        )
+    )

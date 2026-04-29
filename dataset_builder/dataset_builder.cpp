@@ -42,6 +42,11 @@ static inline void AppUsage() {
             << "--note-frequency <1000>\n"
             << "--min-note-frequency <same as --note-frequency>\n"
             << "--max-note-frequency <same as --note-frequency>\n"
+            << "--frequency-factor <0..1>\n"
+            << "--min-frequency-factor <0>\n"
+            << "--max-frequency-factor <1>\n"
+            << "--coupled-frequency-factors <csv of 0..1 factors>\n"
+            << "--require-fundamental (force one coupled oscillator to 1.0*f0)\n"
             << "-t --sample-time <5>\n"
             << "-d --data_save <'data'> (save data)"
             << "-p --startpoint <0> (save data)" << std::endl;
@@ -57,6 +62,19 @@ static bool ParseDouble(std::string_view source, double &out) {
   return result.ec == std::errc{} && result.ptr == source.data() + source.size();
 }
 
+static bool ParseFrequencyFactorList(std::string_view source, std::vector<double> &out) {
+  std::stringstream stream{std::string(source)};
+  std::string item;
+  while (std::getline(stream, item, ',')) {
+    double value = 0.0;
+    if (!ParseDouble(item, value) || value < 0.0 || value > 1.0) {
+      return false;
+    }
+    out.push_back(value);
+  }
+  return !out.empty();
+}
+
 int main(int argc, char **argv) {
   // Application defaults.
   std::size_t min_coupled_oscilators = 50;
@@ -68,6 +86,10 @@ int main(int argc, char **argv) {
   std::size_t starting_point = 0;
   double min_note_frequency = 1000.0;
   double max_note_frequency = 1000.0;
+  double min_frequency_factor = 0.0;
+  double max_frequency_factor = 1.0;
+  bool require_fundamental = false;
+  std::vector<double> coupled_frequency_factors;
 
   // Parse arguments.
   for (int i = 1; i < argc; i++) {
@@ -76,10 +98,16 @@ int main(int argc, char **argv) {
       AppUsage();
       return EXIT_NORMAL;
     }
+    if (arg1 == "--require-fundamental") {
+      require_fundamental = true;
+      continue;
+    }
     if (((arg1 == "-n") || (arg1 == "--dataset-size") || (arg1 == "-m") || (arg1 == "--midi") || (arg1 == "-s") || (arg1 == "--instrument-size") ||
          (arg1 == "--min-instrument-size") || (arg1 == "--max-instrument-size") || (arg1 == "-d") || (arg1 == "--data_save") ||
          (arg1 == "-c") || (arg1 == "--uncoupled-oscilators") || (arg1 == "--min-uncoupled-oscilators") || (arg1 == "--max-uncoupled-oscilators") ||
          (arg1 == "--note-frequency") || (arg1 == "--min-note-frequency") || (arg1 == "--max-note-frequency") || (arg1 == "-p") ||
+         (arg1 == "--frequency-factor") || (arg1 == "--min-frequency-factor") || (arg1 == "--max-frequency-factor") ||
+         (arg1 == "--coupled-frequency-factors") ||
          (arg1 == "-t") || (arg1 == "--sample-time") || (arg1 == "--startpoint")) &&
         (i + 1 < argc)) {
       const std::string_view arg2 = argv[++i];
@@ -111,6 +139,18 @@ int main(int argc, char **argv) {
         ParseDouble(arg2, min_note_frequency);
       } else if (arg1 == "--max-note-frequency") {
         ParseDouble(arg2, max_note_frequency);
+      } else if (arg1 == "--frequency-factor") {
+        ParseDouble(arg2, min_frequency_factor);
+        max_frequency_factor = min_frequency_factor;
+      } else if (arg1 == "--min-frequency-factor") {
+        ParseDouble(arg2, min_frequency_factor);
+      } else if (arg1 == "--max-frequency-factor") {
+        ParseDouble(arg2, max_frequency_factor);
+      } else if (arg1 == "--coupled-frequency-factors") {
+        if (!ParseFrequencyFactorList(arg2, coupled_frequency_factors)) {
+          std::cerr << "--coupled-frequency-factors must be a comma-separated list of normalized values from 0.0 to 1.0." << std::endl;
+          return EXIT_BAD_ARGS;
+        }
       } else {
         std::cerr << "--destination option requires one argument." << std::endl;
         return EXIT_BAD_ARGS;
@@ -128,9 +168,14 @@ int main(int argc, char **argv) {
     std::cerr << "Note frequencies must be positive." << std::endl;
     return EXIT_BAD_ARGS;
   }
+  if (min_frequency_factor < 0.0 || min_frequency_factor > 1.0 || max_frequency_factor < 0.0 || max_frequency_factor > 1.0) {
+    std::cerr << "Frequency factors must be normalized values from 0.0 to 1.0." << std::endl;
+    return EXIT_BAD_ARGS;
+  }
 
   auto builder = DataBuilder(sample_time, min_coupled_oscilators, max_coupled_oscilators, min_uncoupled_oscilators, max_uncoupled_oscilators,
-                             starting_point, min_note_frequency, max_note_frequency);
+                             starting_point, min_note_frequency, max_note_frequency, min_frequency_factor, max_frequency_factor,
+                             require_fundamental, coupled_frequency_factors);
   for (std::size_t i = 0; i < dataset_size; ++i) {
     builder.DataBuildJob(i);
   }
@@ -149,7 +194,34 @@ void DataBuilder::DataBuildJob(std::size_t index) {
     return;
   }
   const double velocity = 1.0 / static_cast<double>(oscillator_count);
-  instrument::InstrumentModel rand_instrument(coupled_count, uncoupled_count, std::to_string(sample_index));
+  instrument::InstrumentModel rand_instrument(0, 0, std::to_string(sample_index));
+  instrument::oscillator::StringOccilator::SetUntunedFrequencyFactorRange(min_frequency_factor, max_frequency_factor);
+  for (std::size_t i = 0; i < uncoupled_count; ++i) {
+    rand_instrument.AddUntunedString(false);
+  }
+  if (!coupled_frequency_factors.empty()) {
+    for (std::size_t i = 0; i < coupled_count; ++i) {
+      if (i < coupled_frequency_factors.size()) {
+        const double factor = coupled_frequency_factors[i];
+        instrument::oscillator::StringOccilator::SetUntunedFrequencyFactorRange(factor, factor);
+      } else {
+        instrument::oscillator::StringOccilator::SetUntunedFrequencyFactorRange(min_frequency_factor, max_frequency_factor);
+      }
+      rand_instrument.AddUntunedString(true);
+    }
+  } else if (require_fundamental && coupled_count > 0U) {
+    constexpr double fundamental_factor = 1.5 / 7.0;
+    instrument::oscillator::StringOccilator::SetUntunedFrequencyFactorRange(fundamental_factor, fundamental_factor);
+    rand_instrument.AddUntunedString(true);
+    instrument::oscillator::StringOccilator::SetUntunedFrequencyFactorRange(min_frequency_factor, max_frequency_factor);
+    for (std::size_t i = 1; i < coupled_count; ++i) {
+      rand_instrument.AddUntunedString(true);
+    }
+  } else {
+    for (std::size_t i = 0; i < coupled_count; ++i) {
+      rand_instrument.AddUntunedString(true);
+    }
+  }
   bool sample_has_distorted = false;
   std::vector<int16_t> sample = rand_instrument.GenerateIntSignal(velocity, freq, num_samples, sample_has_distorted, false);
 

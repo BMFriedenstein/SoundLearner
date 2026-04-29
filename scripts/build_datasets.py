@@ -198,7 +198,7 @@ def build_oscillator_curriculum(args: argparse.Namespace, python_exe: Path) -> N
         "```\n",
     )
 
-    clean_stage = CleanStage("clean", "00_clean_varcount_1024x512_1k", 8, 64, 0, 12)
+    clean_stage = CleanStage("clean", "00_clean_varcount_1024x512_1k", 8, 64, 0, 0)
     clean_root = root / clean_stage.rel_path
     if args.force or not check_dataset_ready(python_exe, clean_root, args.expected_samples):
       print(f"[build] {clean_stage.rel_path}")
@@ -232,10 +232,10 @@ def build_complexity_curriculum(args: argparse.Namespace, python_exe: Path) -> N
         "c1_1to3_clean_1024x512_1k\n"
         "c2_1to5_clean_1024x512_1k\n"
         "c3_1to8_clean_1024x512_1k\n"
-        "c4_1to12_plus2_uncoupled_1024x512_1k\n"
-        "c5_1to20_plus4_uncoupled_1024x512_1k\n"
-        "c6_1to32_plus8_uncoupled_1024x512_1k\n"
-        "c7_1to64_plus12_uncoupled_1024x512_1k\n"
+        "c4_1to12_coupled_1024x512_1k\n"
+        "c5_1to20_coupled_1024x512_1k\n"
+        "c6_1to32_coupled_1024x512_1k\n"
+        "c7_1to64_coupled_1024x512_1k\n"
         "```\n",
     )
 
@@ -243,10 +243,10 @@ def build_complexity_curriculum(args: argparse.Namespace, python_exe: Path) -> N
         CleanStage("c1", "c1_1to3_clean_1024x512_1k", 1, 3, 0, 0),
         CleanStage("c2", "c2_1to5_clean_1024x512_1k", 1, 5, 0, 0),
         CleanStage("c3", "c3_1to8_clean_1024x512_1k", 1, 8, 0, 0),
-        CleanStage("c4", "c4_1to12_plus2_uncoupled_1024x512_1k", 1, 12, 0, 2),
-        CleanStage("c5", "c5_1to20_plus4_uncoupled_1024x512_1k", 1, 20, 0, 4),
-        CleanStage("c6", "c6_1to32_plus8_uncoupled_1024x512_1k", 1, 32, 0, 8),
-        CleanStage("c7", "c7_1to64_plus12_uncoupled_1024x512_1k", 1, 64, 0, 12),
+        CleanStage("c4", "c4_1to12_coupled_1024x512_1k", 1, 12, 0, 0),
+        CleanStage("c5", "c5_1to20_coupled_1024x512_1k", 1, 20, 0, 0),
+        CleanStage("c6", "c6_1to32_coupled_1024x512_1k", 1, 32, 0, 0),
+        CleanStage("c7", "c7_1to64_coupled_1024x512_1k", 1, 64, 0, 0),
     ]
     for stage in stages:
       stage_root = root / stage.rel_path

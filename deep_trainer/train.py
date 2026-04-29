@@ -19,7 +19,7 @@ except ImportError:
 from .dataset import SoundLearnerDataset, discover_examples
 from .differentiable_audio import RenderLossConfig
 from .losses import OscillatorLoss
-from .model import ModelConfig, SoundLearnerNet
+from .model import ModelConfig, SoundLearnerNet, model_config_from_mapping
 
 
 def load_config_file(path: Path) -> dict[str, Any]:
@@ -48,6 +48,8 @@ def add_train_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--time-frames", type=int, default=None, help="Optional strict SLFT time frame count.")
     parser.add_argument("--width", type=int, default=64)
     parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--coordinate-channels", action="store_true", help="Append frequency/time coordinate channels inside the model.")
+    parser.add_argument("--normalization", choices=("batch", "group"), default="batch", help="Spatial normalization in the encoder. GroupNorm is steadier for tiny high-resolution batches.")
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--amp", action="store_true", help="Use CUDA mixed precision.")
@@ -55,6 +57,7 @@ def add_train_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--resume", type=Path, default=None, help="Resume a run from a checkpoint, including optimizer state and epoch.")
     parser.add_argument("--init-checkpoint", type=Path, default=None, help="Initialize model weights from a checkpoint, but start a fresh run.")
     parser.add_argument("--activity-loss-weight", type=float, default=1.0)
+    parser.add_argument("--activity-count-loss-weight", type=float, default=0.0, help="Weight for matching the predicted soft active-oscillator count.")
     parser.add_argument("--parameter-loss-weight", type=float, default=10.0)
     parser.add_argument("--activity-positive-weight", type=float, default=0.0, help="Positive class weight for activity BCE. Use 0 for dynamic batch balancing.")
     parser.add_argument("--f0-loss-weight", type=float, default=1.0, help="Weight for predicted fundamental-frequency supervision.")
@@ -114,6 +117,10 @@ def run_epoch(
     totals = {
         "loss": 0.0,
         "activity_loss": 0.0,
+        "activity_count_loss": 0.0,
+        "activity_soft_count_mae": 0.0,
+        "activity_hard_count_mae": 0.0,
+        "activity_probability_mae": 0.0,
         "parameter_loss": 0.0,
         "f0_loss": 0.0,
         "f0_cents_mae": 0.0,
@@ -192,7 +199,7 @@ def validate_checkpoint_config(checkpoint: dict[str, Any], expected: ModelConfig
     checkpoint_config = checkpoint.get("model_config")
     if checkpoint_config is None:
       raise ValueError("Checkpoint is missing model_config")
-    loaded = ModelConfig(**checkpoint_config)
+    loaded = model_config_from_mapping(checkpoint_config)
     if loaded != expected:
       raise ValueError(
           "Checkpoint model_config does not match requested training config: "
@@ -223,12 +230,18 @@ def log_tensorboard(writer: Any, epoch: int, train_metrics: dict[str, float], va
       return
     writer.add_scalar("train/loss", train_metrics["loss"], epoch)
     writer.add_scalar("train/activity_loss", train_metrics["activity_loss"], epoch)
+    writer.add_scalar("train/activity_count_loss", train_metrics["activity_count_loss"], epoch)
+    writer.add_scalar("train/activity_soft_count_mae", train_metrics["activity_soft_count_mae"], epoch)
+    writer.add_scalar("train/activity_hard_count_mae", train_metrics["activity_hard_count_mae"], epoch)
     writer.add_scalar("train/parameter_loss", train_metrics["parameter_loss"], epoch)
     writer.add_scalar("train/f0_loss", train_metrics["f0_loss"], epoch)
     writer.add_scalar("train/f0_cents_mae", train_metrics["f0_cents_mae"], epoch)
     writer.add_scalar("train/crowding_loss", train_metrics["crowding_loss"], epoch)
     writer.add_scalar("val/loss", validation_metrics["loss"], epoch)
     writer.add_scalar("val/activity_loss", validation_metrics["activity_loss"], epoch)
+    writer.add_scalar("val/activity_count_loss", validation_metrics["activity_count_loss"], epoch)
+    writer.add_scalar("val/activity_soft_count_mae", validation_metrics["activity_soft_count_mae"], epoch)
+    writer.add_scalar("val/activity_hard_count_mae", validation_metrics["activity_hard_count_mae"], epoch)
     writer.add_scalar("val/parameter_loss", validation_metrics["parameter_loss"], epoch)
     writer.add_scalar("val/f0_loss", validation_metrics["f0_loss"], epoch)
     writer.add_scalar("val/f0_cents_mae", validation_metrics["f0_cents_mae"], epoch)
@@ -259,7 +272,14 @@ def main() -> None:
     first_sample = dataset[0]
     input_channels = int(first_sample["features"].shape[0])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    config = ModelConfig(input_channels=input_channels, max_oscillators=args.max_oscillators, width=args.width, dropout=args.dropout)
+    config = ModelConfig(
+        input_channels=input_channels,
+        max_oscillators=args.max_oscillators,
+        width=args.width,
+        dropout=args.dropout,
+        coordinate_channels=args.coordinate_channels,
+        normalization=args.normalization,
+    )
     model = SoundLearnerNet(config).to(device)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=device.type == "cuda")
@@ -283,6 +303,7 @@ def main() -> None:
         activity_weight=args.activity_loss_weight,
         parameter_weight=args.parameter_loss_weight,
         activity_positive_weight=args.activity_positive_weight,
+        activity_count_weight=args.activity_count_loss_weight,
         f0_weight=args.f0_loss_weight,
         crowding_weight=args.crowding_loss_weight,
         render_weight=args.render_loss_weight,
@@ -320,6 +341,9 @@ def main() -> None:
       load_model_state(model, checkpoint)
       print(f"Initialized model weights from {args.init_checkpoint}")
 
+    if args.resume is None and metrics_path.exists():
+      metrics_path.unlink()
+
     print(f"Training on {len(train_dataset)} examples, validating on {len(validation_dataset)} examples, device={device}")
     try:
       for epoch in range(start_epoch, start_epoch + args.epochs):
@@ -336,6 +360,7 @@ def main() -> None:
             f"epoch={epoch:03d} train_loss={train_metrics['loss']:.6f} "
             f"val_loss={validation_metrics['loss']:.6f} "
             f"val_activity={validation_metrics['activity_loss']:.6f} "
+            f"val_count={validation_metrics['activity_soft_count_mae']:.3f} "
             f"val_params={validation_metrics['parameter_loss']:.6f} "
             f"val_f0={validation_metrics['f0_loss']:.6f} "
             f"val_f0_cents={validation_metrics['f0_cents_mae']:.1f} "
@@ -351,6 +376,10 @@ def main() -> None:
                 "epoch": epoch,
                 "train_loss": train_metrics["loss"],
                 "train_activity_loss": train_metrics["activity_loss"],
+                "train_activity_count_loss": train_metrics["activity_count_loss"],
+                "train_activity_soft_count_mae": train_metrics["activity_soft_count_mae"],
+                "train_activity_hard_count_mae": train_metrics["activity_hard_count_mae"],
+                "train_activity_probability_mae": train_metrics["activity_probability_mae"],
                 "train_parameter_loss": train_metrics["parameter_loss"],
                 "train_f0_loss": train_metrics["f0_loss"],
                 "train_f0_cents_mae": train_metrics["f0_cents_mae"],
@@ -359,6 +388,10 @@ def main() -> None:
                 "train_render_rms_loss": train_metrics["render_rms_loss"],
                 "val_loss": validation_metrics["loss"],
                 "val_activity_loss": validation_metrics["activity_loss"],
+                "val_activity_count_loss": validation_metrics["activity_count_loss"],
+                "val_activity_soft_count_mae": validation_metrics["activity_soft_count_mae"],
+                "val_activity_hard_count_mae": validation_metrics["activity_hard_count_mae"],
+                "val_activity_probability_mae": validation_metrics["activity_probability_mae"],
                 "val_parameter_loss": validation_metrics["parameter_loss"],
                 "val_f0_loss": validation_metrics["f0_loss"],
                 "val_f0_cents_mae": validation_metrics["f0_cents_mae"],

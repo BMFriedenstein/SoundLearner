@@ -32,6 +32,8 @@ constexpr std::array<double, 7> kFrequencyAnchors = {
     16.0,
     32.0,
 };
+double g_untuned_frequency_factor_min = 0.0;
+double g_untuned_frequency_factor_max = 1.0;
 
 double ClampRenderedFrequency(double frequency) {
   return std::clamp(frequency, 0.0, k_max_rendered_frequency);
@@ -179,6 +181,13 @@ std::unique_ptr<StringOccilator> StringOccilator::TuneString(uint8_t severity) {
 
 static std::mt19937 stat_rand_eng = std::mt19937(std::random_device{}());
 
+void StringOccilator::SetUntunedFrequencyFactorRange(double minimum, double maximum) {
+  const double clamped_minimum = std::clamp(minimum, 0.0, 1.0);
+  const double clamped_maximum = std::clamp(maximum, 0.0, 1.0);
+  g_untuned_frequency_factor_min = std::min(clamped_minimum, clamped_maximum);
+  g_untuned_frequency_factor_max = std::max(clamped_minimum, clamped_maximum);
+}
+
 /*
  * Generates a new completely randomized SoundString oscillator.
  * @parameters: none
@@ -186,9 +195,10 @@ static std::mt19937 stat_rand_eng = std::mt19937(std::random_device{}());
  */
 std::unique_ptr<StringOccilator> StringOccilator::CreateUntunedString(bool is_coupled) {
   std::uniform_real_distribution<> real_distr(0, 1); // define the range.
+  std::uniform_real_distribution<> frequency_distr(g_untuned_frequency_factor_min, g_untuned_frequency_factor_max);
 
   const double phase = real_distr(stat_rand_eng);            // Maps to 0 to TAU
-  const double freq_factor = real_distr(stat_rand_eng);      // Maps to 0 to max_uncoupled_frequency_factor  or max max_coupled_frequency_factor
+  const double freq_factor = frequency_distr(stat_rand_eng); // Maps to the structured octave-anchor frequency ladder.
   const double amplitude_factor = real_distr(stat_rand_eng); // Maps to 0 to 1
   const double amplitude_decay = real_distr(stat_rand_eng);  // Maps to min_amplitude_decay_factor to 1;
   const double amplitude_attack = real_distr(stat_rand_eng); // Maps to 0 to max Attack rate;
